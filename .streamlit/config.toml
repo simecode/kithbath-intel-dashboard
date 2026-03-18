@@ -1,0 +1,25 @@
+[theme]
+base = "light"
+primaryColor = "#4a51c4"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f5f5f5"
+textColor = "#1a1a2e"
+```
+
+**还需要一个 `requirements.txt`**，告诉 Streamlit Cloud 要装哪些包，否则部署会报错。在根目录新建这个文件：
+```
+streamlit
+feedparser
+requests
+beautifulsoup4
+deep-translator
+anthropic
+```
+
+最终结构：
+```
+intel-dashboard/
+├── app.py
+├── requirements.txt        ← 必须有
+└── .streamlit/
+    └── config.toml
