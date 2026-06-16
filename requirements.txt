@@ -1,6 +1,5 @@
-streamlit
-feedparser
-requests
-beautifulsoup4
-deep-translator
-anthropic
+streamlit>=1.28.0
+feedparser>=6.0.10
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+deep-translator>=1.11.4
