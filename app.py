@@ -518,8 +518,18 @@ def enrich_articles(articles: List[Dict]) -> List[Dict]:
 
 def merge_articles(existing: List[Dict], fresh: List[Dict]) -> List[Dict]:
     """合并文章列表，去重"""
-    existing_keys = {a["title"].strip()[:50] for a in existing}
-    new_only = [a for a in fresh if a["title"].strip()[:50] not in existing_keys]
+    # 使用标题和链接的组合作为唯一键，更加准确
+    def get_key(a):
+        return (a.get("title", "").strip()[:100] + a.get("link", "").strip()).lower()
+    
+    existing_keys = {get_key(a) for a in existing}
+    new_only = []
+    for a in fresh:
+        key = get_key(a)
+        if key not in existing_keys:
+            new_only.append(a)
+            existing_keys.add(key)
+            
     return new_only + existing
 
 def _bg_update(store_path: str, rss_dict: Dict, scrape_dict: Dict, state_key: str):
