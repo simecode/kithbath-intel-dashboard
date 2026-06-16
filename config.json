@@ -7,7 +7,7 @@
   "media_scrape": {
     "SanitaerNews": [
       "https://www.sanitaernews.de/",
-      "h2 a, h3 a"
+      "h1 a, h2 a, h3 a"
     ],
     "SDBPRO": [
       "https://www.sdbpro.fr/industrie/",
@@ -19,7 +19,7 @@
     ],
     "Alimarket": [
       "https://www.alimarket.es/construccion/noticias",
-      "h2 a, h3 a"
+      "h1 a, h2 a, h3 a"
     ],
     "SupplyHT": [
       "https://www.supplyht.com/topics/2649-plumbing",
