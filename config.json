@@ -1,0 +1,79 @@
+{
+  "media_rss": {
+    "House News": "https://www.housenews.jp/rss",
+    "KBB 评论": "https://www.kbbreview.com/feed/",
+    "木工网": "https://www.woodworkingnetwork.com/rss.xml"
+  },
+  "media_scrape": {
+    "SanitaerNews": [
+      "https://www.sanitaernews.de/",
+      "h2 a, h3 a"
+    ],
+    "SDBPRO": [
+      "https://www.sdbpro.fr/industrie/",
+      "h2 a, h3 a"
+    ],
+    "Moebelmarkt": [
+      "https://www.moebelmarkt.de/news",
+      "h2 a, h3 a"
+    ],
+    "Alimarket": [
+      "https://www.alimarket.es/construccion/noticias",
+      "h2 a, h3 a"
+    ],
+    "SupplyHT": [
+      "https://www.supplyht.com/topics/2649-plumbing",
+      "h2 a, h3 a"
+    ],
+    "DIY International": [
+      "https://www.diyinternational.com/",
+      "h2 a, h3 a"
+    ],
+    "Ceramic World Web": [
+      "https://ceramicworldweb.com/index.php/en",
+      "h2 a, h3 a"
+    ],
+    "Industry ID": [
+      "https://www.industry.co.id/industri/keramik",
+      "h4 a"
+    ]
+  },
+  "assoc_rss": {
+    "Cerameunie": "https://cerameunie.eu/rss",
+    "Abceram BR": "https://abceram.org.br/feed"
+  },
+  "assoc_scrape": {
+    "VN Ceramic": [
+      "https://vnceramic.org.vn/",
+      "h2 a, h3 a"
+    ],
+    "Sanitaerwirtschaft": [
+      "https://www.sanitaerwirtschaft.de/aktuell",
+      "h2 a, h3 a"
+    ],
+    "CCST": [
+      "https://ccst.org.tr/haberler",
+      "li a"
+    ],
+    "CAB Badania": [
+      "https://cab-badania.pl/en/",
+      "li a"
+    ],
+    "Apicer PT": [
+      "https://www.apicer.pt/apicer/pt/noticias",
+      "li a"
+    ],
+    "REIC Thailand": [
+      "https://www.reic.or.th/",
+      "li a"
+    ],
+    "VDMA": [
+      "https://www.vdma.eu/de/armaturen",
+      "h2 a, h3 a"
+    ],
+    "Acimac": [
+      "https://www.acimac.it/news-di-settore/",
+      "h2 a, h3 a"
+    ]
+  }
+}
