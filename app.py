@@ -550,36 +550,60 @@ def merge_articles(existing: List[Dict], fresh: List[Dict]) -> List[Dict]:
     return new_only + existing
 
 def search_discovery(keywords: List[str]) -> List[Dict]:
-    """通过关键词搜索发现新情报（模拟全网搜索）"""
+    """通过 Google 搜索发现新情报"""
     articles = []
-    # 这里可以使用 Google Search API 或其他搜索接口
-    # 为了演示，我们使用 DuckDuckGo 或类似的公开搜索接口
-    # 也可以使用 Python 库如 googlesearch-python
-    for kw in keywords[:5]: # 每次更新只搜前几个关键词，防止被封
+    # 模拟更真实的浏览器行为
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.google.com/"
+    }
+    
+    # 为了避免被封，每次随机选择 3 个关键词进行搜索
+    import random
+    selected_kws = random.sample(keywords, min(len(keywords), 3))
+    
+    for kw in selected_kws:
         try:
-            # 模拟搜索结果
-            url = f"https://www.google.com/search?q={kw}+industry+news"
-            res = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+            # 增加行业相关后缀以提高搜索精准度
+            search_query = f"{kw} industry news news 2026"
+            url = f"https://www.google.com/search?q={search_query.replace(' ', '+')}&tbs=qdr:m" # 限制在过去一个月内
+            
+            res = requests.get(url, timeout=15, headers=headers)
+            if res.status_code != 200:
+                continue
+                
             soup = BeautifulSoup(res.text, "html.parser")
             
-            # 提取搜索结果中的链接和标题
-            # 注意：Google 的 HTML 结构经常变，这里需要更鲁棒的解析
-            for g in soup.find_all('div', class_='g'):
-                anchors = g.find_all('a')
-                if anchors:
-                    link = anchors[0]['href']
-                    title = g.find('h3').text if g.find('h3') else ""
-                    if title and link.startswith("http"):
+            # Google 搜索结果的典型结构
+            search_results = soup.select('div.g')
+            for g in search_results[:5]: # 每个关键词取前 5 个结果
+                h3 = g.select_one('h3')
+                a = g.select_one('a')
+                snippet = g.select_one('div.VwiC3b') # Google 摘要的常见 class
+                
+                if h3 and a and a.get('href'):
+                    title = h3.get_text()
+                    link = a['href']
+                    raw_summary = snippet.get_text() if snippet else f"基于关键词 '{kw}' 发现的行业情报。"
+                    
+                    if link.startswith("http") and "google.com" not in link:
                         articles.append({
                             "title": f"[发现] {title}",
                             "link": link,
-                            "source": f"全网搜索: {kw}",
+                            "source": f"Google: {kw}",
                             "dt": datetime.now(timezone.utc).isoformat(),
-                            "raw_summary": f"基于关键词 '{kw}' 发现的行业情报。",
+                            "raw_summary": raw_summary,
                             "fetched_at": datetime.now(timezone.utc).isoformat(),
                         })
-        except:
-            pass
+            
+            # 适当延时，防止请求过快
+            time.sleep(random.uniform(1, 3))
+            
+        except Exception as e:
+            print(f"Search error for {kw}: {e}")
+            
     return articles
 
 def _bg_update(store_path: str, rss_dict: Dict, scrape_dict: Dict, state_key: str, keywords: List[str] = None):
@@ -873,27 +897,43 @@ def main():
         render_articles_list(assoc_articles, "page_assoc", enable_ai)
 
     with tab_discovery:
-        st.markdown("### 🔍 行业情报自动发现")
-        st.info("上传您的多语言行业关键词文件，系统将自动在全网搜索最新动态。")
+        st.markdown("### 🔍 行业情报自动发现 (Google 驱动)")
+        st.info("系统将基于您的关键词，通过 Google 搜索全网最新的行业资讯。")
         
-        uploaded_file = st.file_uploader("上传关键词文件 (txt)", type=["txt"])
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            uploaded_file = st.file_uploader("📁 上传关键词文件 (txt)", type=["txt"])
+        with col2:
+            manual_keywords = st.text_area("⌨️ 或手动输入关键词 (每行一个)", placeholder="例如: Sanitaryware industry news")
+        
         keywords = []
         if uploaded_file:
-            keywords = [line.decode("utf-8").strip() for line in uploaded_file if line.strip()]
-            st.success(f"已加载 {len(keywords)} 个关键词")
-            
-            if st.button("🚀 开始全网情报发现", use_container_width=True):
-                with st.spinner("正在全网搜索情报..."):
+            keywords.extend([line.decode("utf-8").strip() for line in uploaded_file if line.strip()])
+        if manual_keywords:
+            keywords.extend([k.strip() for k in manual_keywords.split("\n") if k.strip()])
+        
+        # 过滤掉注释或非关键词行
+        keywords = [k for k in keywords if k and not k.startswith("#") and len(k) > 1]
+        
+        if keywords:
+            st.success(f"✅ 已就绪 {len(keywords)} 个有效关键词")
+            if st.button("🚀 启动 Google 全网情报发现", use_container_width=True):
+                with st.spinner("正在通过 Google 搜索情报..."):
+                    # 立即触发一次更新，不考虑 30 分钟间隔
                     trigger_bg_update(DISCOVERY_STORE, None, None, "discovery", interval_minutes=0, keywords=keywords)
-                    st.success("已启动后台搜索任务，请稍后刷新页面查看结果。")
+                    st.toast("任务已启动！搜索结果将在几分钟内陆续出现。")
+                    st.info("提示：搜索任务在后台运行，您可以继续浏览其他页面，稍后回来刷新即可。")
 
+        st.divider()
+        
         discovery_articles = store_read(DISCOVERY_STORE)
         if discovery_articles:
+            st.subheader(f"📊 已发现情报 ({len(discovery_articles)} 条)")
             discovery_articles = enrich_articles(discovery_articles)
             discovery_articles = sort_articles(discovery_articles, sort_mode)
             render_articles_list(discovery_articles, "page_discovery", enable_ai)
         else:
-            st.caption("暂无发现的情报，请上传关键词并启动搜索。")
+            st.info("💡 暂无发现的情报。请在上方输入关键词并点击启动。")
 
 if __name__ == "__main__":
     main()
