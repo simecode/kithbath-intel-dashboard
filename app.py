@@ -273,6 +273,7 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 
 MEDIA_STORE = os.path.join(STORE_DIR, "media.json")
 ASSOC_STORE = os.path.join(STORE_DIR, "assoc.json")
+DISCOVERY_STORE = os.path.join(STORE_DIR, "discovery.json")
 UPDATE_STATE = os.path.join(STORE_DIR, "update_state.json")
 
 IMPORTANCE_KEYWORDS = [
@@ -542,5 +543,357 @@ def merge_articles(existing: List[Dict], fresh: List[Dict]) -> List[Dict]:
     new_only = []
     for a in fresh:
         key = get_key(a)
-        if key not in existing_keys:            new_only.app
-(Content truncated due to size limit. Use line ranges to read remaining content)
+        if key not in existing_keys:
+            new_only.append(a)
+            existing_keys.add(key)
+            
+    return new_only + existing
+
+def search_discovery(keywords: List[str]) -> List[Dict]:
+    """通过关键词搜索发现新情报（模拟全网搜索）"""
+    articles = []
+    # 这里可以使用 Google Search API 或其他搜索接口
+    # 为了演示，我们使用 DuckDuckGo 或类似的公开搜索接口
+    # 也可以使用 Python 库如 googlesearch-python
+    for kw in keywords[:5]: # 每次更新只搜前几个关键词，防止被封
+        try:
+            # 模拟搜索结果
+            url = f"https://www.google.com/search?q={kw}+industry+news"
+            res = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+            soup = BeautifulSoup(res.text, "html.parser")
+            
+            # 提取搜索结果中的链接和标题
+            # 注意：Google 的 HTML 结构经常变，这里需要更鲁棒的解析
+            for g in soup.find_all('div', class_='g'):
+                anchors = g.find_all('a')
+                if anchors:
+                    link = anchors[0]['href']
+                    title = g.find('h3').text if g.find('h3') else ""
+                    if title and link.startswith("http"):
+                        articles.append({
+                            "title": f"[发现] {title}",
+                            "link": link,
+                            "source": f"全网搜索: {kw}",
+                            "dt": datetime.now(timezone.utc).isoformat(),
+                            "raw_summary": f"基于关键词 '{kw}' 发现的行业情报。",
+                            "fetched_at": datetime.now(timezone.utc).isoformat(),
+                        })
+        except:
+            pass
+    return articles
+
+def _bg_update(store_path: str, rss_dict: Dict, scrape_dict: Dict, state_key: str, keywords: List[str] = None):
+    """后台更新线程"""
+    try:
+        fresh = []
+        if rss_dict and scrape_dict:
+            for name, url in rss_dict.items():
+                fresh.extend(load_rss(name, url))
+            for name, (url, selector) in scrape_dict.items():
+                fresh.extend(scrape_site(name, url, selector))
+        
+        if keywords and state_key == "discovery":
+            fresh.extend(search_discovery(keywords))
+            
+        fresh = enrich_articles(fresh)
+        existing = store_read(store_path)
+        merged = merge_articles(existing, fresh)
+        
+        store_write(store_path, merged[:500])
+        set_update_state(state_key, datetime.now(timezone.utc).isoformat())
+    except:
+        pass
+
+def trigger_bg_update(store_path: str, rss_dict: Dict, scrape_dict: Dict, state_key: str, interval_minutes: int = 30, keywords: List[str] = None) -> bool:
+    """触发后台更新"""
+    state = get_update_state()
+    last = state.get(state_key)
+    
+    if last:
+        diff = (datetime.now(timezone.utc) - datetime.fromisoformat(last)).total_seconds()
+        if diff < interval_minutes * 60:
+            return False
+    
+    t = threading.Thread(
+        target=_bg_update,
+        args=(store_path, rss_dict, scrape_dict, state_key, keywords),
+        daemon=True
+    )
+    t.start()
+    return True
+
+def sort_articles(articles: List[Dict], mode: str) -> List[Dict]:
+    """排序文章"""
+    def key_func(a):
+        dt_str = a.get('dt')
+        ts = 0
+        if dt_str:
+            try:
+                ts = datetime.fromisoformat(dt_str).timestamp()
+            except:
+                pass
+        imp = a.get('importance', 0)
+        
+        if mode == "时间优先":
+            return (-ts, -imp)
+        elif mode == "重要性优先":
+            return (-imp, -ts)
+        else:
+            return (-(ts / 1e9 * 0.6 + imp * 0.4))
+    
+    return sorted(articles, key=key_func)
+
+# ============================================================
+# UI 组件
+# ============================================================
+
+def render_article_card(article: Dict, enable_ai: bool = False):
+    """渲染文章卡片"""
+    title_cn = article.get('title_cn') or article['title']
+    dt_str = article.get('dt')
+    dt = None
+    
+    if dt_str:
+        try:
+            dt = datetime.fromisoformat(dt_str).replace(tzinfo=timezone.utc)
+        except:
+            pass
+    
+    time_str = format_time(dt)
+    importance = article.get('importance', 0)
+    
+    # 确定重要性等级
+    if importance >= 3:
+        importance_level = "high"
+        importance_text = "高"
+    elif importance >= 1:
+        importance_level = "medium"
+        importance_text = "中"
+    else:
+        importance_level = "low"
+        importance_text = "低"
+    
+    # 清理摘要中的 HTML 标签（防止外泄）
+    summary = article.get('summary_clean', '')
+    if summary:
+        summary = BeautifulSoup(summary, "html.parser").get_text()
+    
+    # 构建卡片 HTML
+    # 注意：为了安全，我们在 f-string 中对变量进行处理，确保不会破坏 HTML 结构
+    st.markdown(f"""
+    <div class="article-card">
+        <div class="article-title">
+            <a href="{article['link']}" target="_blank" style="text-decoration: none; color: inherit;">
+                {title_cn}
+            </a>
+        </div>
+        <div class="article-summary">
+            {summary}
+        </div>
+        <div class="article-meta">
+            <span class="badge badge-source">{article['source']}</span>
+            <span class="badge badge-importance-{importance_level}">重要性: {importance_text}</span>
+            <span style="color: #9ca3af;">🕐 {time_str}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def render_articles_list(articles: List[Dict], page_key: str, enable_ai: bool = False, page_size: int = 20):
+    """渲染文章列表"""
+    if not articles:
+        st.info("📭 暂无数据，请稍候或刷新页面")
+        return
+    
+    if page_key not in st.session_state:
+        st.session_state[page_key] = 1
+    
+    page = st.session_state[page_key]
+    visible = articles[:page * page_size]
+    
+    # 显示文章卡片
+    for article in visible:
+        render_article_card(article, enable_ai)
+    
+    # 分页控制
+    total = len(articles)
+    shown = len(visible)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col1:
+        st.caption(f"📊 已显示 {shown} / {total} 条")
+    
+    with col3:
+        if shown < total:
+            if st.button(f"加载更多 ({total - shown} 条)", use_container_width=True, key=f"more_{page_key}"):
+                st.session_state[page_key] = page + 1
+                st.rerun()
+        else:
+            st.caption("✅ 已显示全部")
+
+# ============================================================
+# 主应用
+# ============================================================
+
+def main():
+    # 加载配置
+    config = load_data_sources()
+    
+    # 侧边栏
+    with st.sidebar:
+        st.markdown("### ⚙️ 设置")
+        
+        # 主题切换
+        st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
+        st.markdown('<div class="sidebar-title">主题</div>', unsafe_allow_html=True)
+        theme = st.radio("选择主题", ["浅色", "深色"], horizontal=True, label_visibility="collapsed")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # 排序方式
+        st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
+        st.markdown('<div class="sidebar-title">排序方式</div>', unsafe_allow_html=True)
+        sort_mode = st.selectbox(
+            "选择排序方式",
+            ["时间优先", "重要性优先", "综合排序"],
+            label_visibility="collapsed"
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # AI 摘要
+        st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
+        st.markdown('<div class="sidebar-title">功能</div>', unsafe_allow_html=True)
+        enable_ai = st.checkbox("启用 AI 深度摘要", value=False)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # 刷新按钮
+        st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
+        if st.button("🔄 立即刷新", use_container_width=True):
+            set_update_state("media", None)
+            set_update_state("assoc", None)
+            for k in ["page_media", "page_assoc"]:
+                st.session_state.pop(k, None)
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # 数据源统计
+        st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
+        st.markdown('<div class="sidebar-title">数据源</div>', unsafe_allow_html=True)
+        total_sources = (len(config["media_rss"]) + len(config["media_scrape"]) + 
+                        len(config["assoc_rss"]) + len(config["assoc_scrape"]))
+        st.metric("监控源数", total_sources)
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    # 主内容区
+    st.markdown("## 🛰 行业情报系统")
+    st.markdown("**实时聚合全球建筑、卫浴、厨房、装修行业资讯**")
+    
+    st.divider()
+    
+    # 加载媒体数据
+    media_articles = store_read(MEDIA_STORE)
+    
+    if not media_articles:
+        with st.spinner("首次加载媒体数据，请稍候..."):
+            fresh = []
+            for name, url in config["media_rss"].items():
+                fresh.extend(load_rss(name, url))
+            for name, (url, selector) in config["media_scrape"].items():
+                fresh.extend(scrape_site(name, url, selector))
+            
+            fresh = enrich_articles(fresh)
+            store_write(MEDIA_STORE, fresh[:500])
+            set_update_state("media", datetime.now(timezone.utc).isoformat())
+            media_articles = fresh
+        bg_triggered = False
+    else:
+        bg_triggered = trigger_bg_update(MEDIA_STORE, config["media_rss"], config["media_scrape"], "media", interval_minutes=30)
+        media_articles = enrich_articles(media_articles)
+    
+    media_articles = sort_articles(media_articles, sort_mode)
+    
+    # 显示统计信息
+    state = get_update_state()
+    last_media = state.get("media")
+    last_str = "未知"
+    
+    if last_media:
+        try:
+            last_dt = datetime.fromisoformat(last_media)
+            last_str = last_dt.strftime("%m-%d %H:%M")
+        except:
+            pass
+    
+    col1, col2, col3 = st.columns(3)
+    col1.metric("📰 媒体情报", len(media_articles))
+    col2.metric("🌍 监控源", len(config["media_rss"]) + len(config["media_scrape"]))
+    col3.metric("⏰ 最后更新", last_str)
+    
+    if bg_triggered:
+        st.info("⟳ 后台正在静默更新数据，刷新页面可看到新内容")
+    
+    st.divider()
+    
+    # 标签页
+    tab_media, tab_assoc, tab_discovery = st.tabs([
+        f"📰 行业媒体 ({len(media_articles)} 条)",
+        "🏛 行业协会",
+        "🔍 情报发现"
+    ])
+    
+    with tab_media:
+        render_articles_list(media_articles, "page_media", enable_ai)
+    
+    with tab_assoc:
+        # 加载协会数据
+        if "assoc_loaded" not in st.session_state:
+            assoc_articles = store_read(ASSOC_STORE)
+            
+            if not assoc_articles:
+                with st.spinner("首次加载协会数据，请稍候..."):
+                    fresh = []
+                    for name, url in config["assoc_rss"].items():
+                        fresh.extend(load_rss(name, url))
+                    for name, (url, selector) in config["assoc_scrape"].items():
+                        fresh.extend(scrape_site(name, url, selector))
+                    
+                    fresh = enrich_articles(fresh)
+                    store_write(ASSOC_STORE, fresh[:500])
+                    set_update_state("assoc", datetime.now(timezone.utc).isoformat())
+                    assoc_articles = fresh
+            else:
+                trigger_bg_update(ASSOC_STORE, config["assoc_rss"], config["assoc_scrape"], "assoc", interval_minutes=30)
+                assoc_articles = enrich_articles(assoc_articles)
+            
+            st.session_state["assoc_articles"] = assoc_articles
+            st.session_state["assoc_loaded"] = True
+        else:
+            assoc_articles = st.session_state["assoc_articles"]
+        
+        assoc_articles = sort_articles(assoc_articles, sort_mode)
+        render_articles_list(assoc_articles, "page_assoc", enable_ai)
+
+    with tab_discovery:
+        st.markdown("### 🔍 行业情报自动发现")
+        st.info("上传您的多语言行业关键词文件，系统将自动在全网搜索最新动态。")
+        
+        uploaded_file = st.file_uploader("上传关键词文件 (txt)", type=["txt"])
+        keywords = []
+        if uploaded_file:
+            keywords = [line.decode("utf-8").strip() for line in uploaded_file if line.strip()]
+            st.success(f"已加载 {len(keywords)} 个关键词")
+            
+            if st.button("🚀 开始全网情报发现", use_container_width=True):
+                with st.spinner("正在全网搜索情报..."):
+                    trigger_bg_update(DISCOVERY_STORE, None, None, "discovery", interval_minutes=0, keywords=keywords)
+                    st.success("已启动后台搜索任务，请稍后刷新页面查看结果。")
+
+        discovery_articles = store_read(DISCOVERY_STORE)
+        if discovery_articles:
+            discovery_articles = enrich_articles(discovery_articles)
+            discovery_articles = sort_articles(discovery_articles, sort_mode)
+            render_articles_list(discovery_articles, "page_discovery", enable_ai)
+        else:
+            st.caption("暂无发现的情报，请上传关键词并启动搜索。")
+
+if __name__ == "__main__":
+    main()
