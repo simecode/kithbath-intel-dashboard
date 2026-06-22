@@ -290,6 +290,26 @@ NAV_WORDS = [
 def store_read(path: str) -> List[Dict]:
     """从磁盘读取文章列表"""
     if not os.path.exists(path):
+        # 预置一些初始情报，防止首次部署显示空白
+        if "discovery" in path:
+            return [
+                {
+                    "title": "✨ Global Sanitaryware Market Trends 2026: Modular Bathrooms Rising",
+                    "link": "https://www.google.com/search?q=modular+bathrooms+trends+2026",
+                    "source": "系统预置: Industry Trend",
+                    "dt": datetime.now(timezone.utc).isoformat(),
+                    "raw_summary": "Analysis of the global sanitaryware market shows a significant shift towards prefabricated and modular bathroom units in urban developments.",
+                    "fetched_at": datetime.now(timezone.utc).isoformat(),
+                },
+                {
+                    "title": "🌐 Smart Toilet Innovations: Water-Saving Technologies in Focus",
+                    "link": "https://www.google.com/search?q=smart+toilet+innovations+2026",
+                    "source": "系统预置: Technology",
+                    "dt": datetime.now(timezone.utc).isoformat(),
+                    "raw_summary": "New smart toilet models are integrating AI-driven water management systems to reduce consumption while enhancing hygiene.",
+                    "fetched_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ]
         return []
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -550,53 +570,50 @@ def merge_articles(existing: List[Dict], fresh: List[Dict]) -> List[Dict]:
     return new_only + existing
 
 def search_discovery(keywords: List[str]) -> List[Dict]:
-    """通过 Google 和 DuckDuckGo 搜索发现新情报"""
+    """多引擎行业情报搜索引擎 (DuckDuckGo + Bing 备选)"""
     articles = []
     import random
     
-    # 随机选择 2 个关键词进行深度搜索
-    selected_kws = random.sample(keywords, min(len(keywords), 2))
+    # 每次搜索随机选择 3 个关键词，提高覆盖面
+    selected_kws = random.sample(keywords, min(len(keywords), 3))
     
     for kw in selected_kws:
-        # 策略 1: DuckDuckGo (对抓取更友好)
+        # 策略 1: DuckDuckGo HTML 版 (最稳定)
         try:
-            search_query = f"{kw} industry news"
-            ddg_url = f"https://html.duckduckgo.com/html/?q={search_query.replace(' ', '+')}"
-            headers = {"User-Agent": "Mozilla/5.0"}
-            res = requests.get(ddg_url, timeout=10, headers=headers)
+            search_query = f"{kw} bathroom sanitary industry news 2026"
+            url = f"https://html.duckduckgo.com/html/?q={search_query.replace(' ', '+')}"
+            res = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, "html.parser")
-                results = soup.select('.result')
-                for r in results[:5]:
+                for r in soup.select('.result')[:8]:
                     a = r.select_one('.result__a')
                     snippet = r.select_one('.result__snippet')
-                    if a:
-                        articles.append({
-                            "title": f"[DDG发现] {a.get_text()}",
-                            "link": a['href'],
-                            "source": f"发现: {kw}",
-                            "dt": datetime.now(timezone.utc).isoformat(),
-                            "raw_summary": snippet.get_text() if snippet else "",
-                            "fetched_at": datetime.now(timezone.utc).isoformat(),
-                        })
-        except:
-            pass
+                    if a and a.get('href'):
+                        link = a['href']
+                        if "duckduckgo.com" not in link:
+                            articles.append({
+                                "title": f"✨ {a.get_text(strip=True)}",
+                                "link": link,
+                                "source": f"发现: {kw}",
+                                "dt": datetime.now(timezone.utc).isoformat(),
+                                "raw_summary": snippet.get_text(strip=True) if snippet else "",
+                                "fetched_at": datetime.now(timezone.utc).isoformat(),
+                            })
+        except Exception as e:
+            print(f"DDG Search error: {e}")
 
-        # 策略 2: Google (备选，容易被封)
+        # 策略 2: Bing 搜索 (作为 Google 的平替，抓取限制较少)
         try:
-            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
-            search_query = f"{kw} industry news 2026"
-            url = f"https://www.google.com/search?q={search_query.replace(' ', '+')}&tbs=qdr:w" # 限制在过去一周
-            res = requests.get(url, timeout=10, headers=headers)
+            url = f"https://www.bing.com/news/search?q={kw.replace(' ', '+')}+sanitary"
+            res = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, "html.parser")
-                for g in soup.select('div.g')[:3]:
-                    h3 = g.select_one('h3')
-                    a = g.select_one('a')
-                    if h3 and a and a.get('href') and "google.com" not in a['href']:
+                for item in soup.select('.news-card')[:5]:
+                    title_el = item.select_one('.title')
+                    if title_el and title_el.get('href'):
                         articles.append({
-                            "title": f"[Google发现] {h3.get_text()}",
-                            "link": a['href'],
+                            "title": f"🌐 {title_el.get_text(strip=True)}",
+                            "link": title_el['href'],
                             "source": f"发现: {kw}",
                             "dt": datetime.now(timezone.utc).isoformat(),
                             "raw_summary": "",
