@@ -18,10 +18,13 @@
     "木工网": "https://www.woodworkingnetwork.com/rss.xml"
   },
   "media_scrape": {
-    "SanitaerNews": [
-      "https://www.sanitaernews.de/",
-      "h1 a, h2 a, h3 a"
-    ],
+    "SanitaerNews": {
+      "url": "https://www.sanitaernews.de/",
+      "item": "div.article",
+      "title": "h1 a",
+      "summary": "p",
+      "date": "div.date"
+    },
     "SDBPRO": [
       "https://www.sdbpro.fr/industrie/",
       "h2 a, h3 a"
@@ -30,10 +33,13 @@
       "https://www.moebelmarkt.de/news",
       "h2 a, h3 a"
     ],
-    "Alimarket": [
-      "https://www.alimarket.es/construccion/noticias",
-      "h1 a, h2 a, h3 a, .noticia h2 a"
-    ],
+    "Alimarket": {
+      "url": "https://www.alimarket.es/construccion/noticias",
+      "item": "div.noticia",
+      "title": "h1 a",
+      "summary": "p",
+      "date": "span.fecha"
+    },
     "SupplyHT": [
       "https://www.supplyht.com/topics/2649-plumbing",
       "h2 a, h3 a"
