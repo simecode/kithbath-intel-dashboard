@@ -390,7 +390,7 @@ def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai"
         elif provider == "openrouter":
             model = "openrouter/free"
             res = requests.post(
-                "https://openrouter.ai/api/v1",
+                "https://openrouter.ai/api/v1/chat/completions",
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
