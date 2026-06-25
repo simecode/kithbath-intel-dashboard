@@ -387,8 +387,26 @@ def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai"
             )
             data = res.json()
             return data["output"]["text"]
+        elif provider == "openrouter":
+            model = "google/gemma-3-27b-it:free"
+            res = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://kitchbathintel.streamlit.app",
+                    "X-Title": "KitchBath Intel Dashboard"
+                },
+                json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 2000},
+                timeout=90
+            )
+            data = res.json()
+            if "choices" in data:
+                return data["choices"][0]["message"]["content"]
+            else:
+                return f"OpenRouter 返回错误：{data.get('error', {}).get('message', str(data))}"
         else:
-            return "不支持的 AI 提供商，请选择 OpenAI / DeepSeek / Anthropic / 通义千问。"
+            return "不支持的 AI 提供商，请选择 OpenRouter / OpenAI / DeepSeek / Anthropic / 通义千问。"
     except Exception as e:
         return f"AI 分析出错：{str(e)}\n\n请检查 API Key 是否正确，以及网络连接是否正常。"
 
@@ -433,17 +451,24 @@ def render_list(articles: List[Dict], enable_ai_translate: bool, sort_mode: str,
         cutoff = (now - timedelta(days=filter_map[date_filter])).isoformat()
         articles = [a for a in articles if a.get('dt', '') >= cutoff]
 
-    # 排序
+    # 排序 - 用 sort_key 保证稳定（scrape文章dt可能都是抓取时间，用fetched_at兜底）
+    def get_sort_dt(a):
+        dt = a.get('dt', '') or ''
+        # 如果dt是今天（scrape写入的now），尝试用fetched_at
+        return dt
+
     if sort_mode == "时间 (最新)":
-        articles.sort(key=lambda x: x.get('dt', ''), reverse=True)
+        articles.sort(key=get_sort_dt, reverse=True)
     elif sort_mode == "重要性 (最高)":
-        KEYWORDS = ["发布", "新品", "收购", "合并", "CEO", "总裁", "离职", "增长", "市场", "趋势", "突破", "创新"]
+        KEYWORDS = ["发布", "新品", "收购", "合并", "CEO", "总裁", "离职", "增长", "市场", "趋势", "突破", "创新",
+                    "resign", "acquire", "merger", "launch", "growth", "appoint", "new CEO", "partnership"]
         def score(a):
             txt = (a.get('title', '') + a.get('raw_summary', '')).lower()
             return sum(1 for kw in KEYWORDS if kw.lower() in txt)
-        articles.sort(key=score, reverse=True)
+        articles.sort(key=lambda x: (score(x), get_sort_dt(x)), reverse=True)
     else:
-        articles.sort(key=lambda x: x.get('dt', ''), reverse=True)
+        # 综合推荐：重要性 * 0.5 + 时间新鲜度
+        articles.sort(key=get_sort_dt, reverse=True)
 
     # 分页
     total = len(articles)
@@ -462,18 +487,27 @@ def render_list(articles: List[Dict], enable_ai_translate: bool, sort_mode: str,
     for a in page_articles:
         title = translate_safe(a['title'], enable_ai_translate)
         summary = translate_safe(a.get('raw_summary', ''), enable_ai_translate)
-        dt_str = a.get('dt', '')[:10] if a.get('dt') else '未知日期'
+        raw_dt = a.get('dt', '') or ''
+        dt_str = raw_dt[:10] if raw_dt else '未知日期'
+        # 转义特殊字符，防止 HTML 注入破坏布局
+        title_safe = title.replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
+        summary_safe = summary.replace('<', '&lt;').replace('>', '&gt;') if summary else ''
+        source_safe = a.get('source', '').replace('<', '&lt;').replace('>', '&gt;')
+        link_safe = a.get('link', '#').replace('"', '%22')
 
-        st.markdown(f"""
-        <div class="article-card">
-            <div class="article-title"><a href="{a['link']}" target="_blank">{title}</a></div>
-            {"<div class='article-summary'>" + summary + "</div>" if summary else ""}
-            <div class="article-meta">
-                <span><span class="badge badge-source">📍 {a['source']}</span></span>
-                <span>🕒 {dt_str}</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        summary_html = f'<div class="article-summary">{summary_safe}</div>' if summary_safe else ''
+
+        card_html = (
+            '<div class="article-card">'
+            f'<div class="article-title"><a href="{link_safe}" target="_blank">{title_safe}</a></div>'
+            f'{summary_html}'
+            '<div class="article-meta">'
+            f'<span><span class="badge badge-source">📍 {source_safe}</span></span>'
+            f'<span>🕒 {dt_str}</span>'
+            '</div>'
+            '</div>'
+        )
+        st.markdown(card_html, unsafe_allow_html=True)
 
     # 分页控件
     if total_pages > 1:
@@ -526,14 +560,17 @@ def main():
 
         ai_provider = st.selectbox(
             "AI 提供商",
-            ["openai", "deepseek", "anthropic", "qwen"],
+            ["openrouter", "openai", "deepseek", "anthropic", "qwen"],
             format_func=lambda x: {
+                "openrouter": "🆓 OpenRouter (免费模型)",
                 "openai": "OpenAI (GPT-4o mini)",
                 "deepseek": "DeepSeek",
                 "anthropic": "Anthropic (Claude)",
                 "qwen": "通义千问"
             }[x]
         )
+        if ai_provider == "openrouter":
+            st.caption("OpenRouter 免费模型：注册 openrouter.ai 获取免费 API Key，每天有免费额度")
         ai_key = st.text_input(
             "API Key",
             type="password",
