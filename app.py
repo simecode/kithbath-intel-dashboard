@@ -388,9 +388,9 @@ def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai"
             data = res.json()
             return data["output"]["text"]
         elif provider == "openrouter":
-            model = "google/gemma-3-27b-it:free"
+            model = "google/gemma-7b-it:free"
             res = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
+                "https://openrouter.ai/api/v1",
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
