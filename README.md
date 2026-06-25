@@ -55,11 +55,6 @@ streamlit run app.py
 - **排序方式**：时间最新 / 重要性最高 / 综合推荐
 - **分页浏览**：每页 20 条，支持上一页/下一页翻页
 
-**内置数据源：**
-
-媒体端：KBB Review（英）、Kitchen Bath Business（美）、Plumbing & Mechanical（美）、Woodworking Network（美）、SanitaerNews（德）、SDBPRO（法）、Moebelmarkt（德）、Ceramic World Web（国际）、DIY International、Alimarket（西班牙）
-
-协会端：Cerameunie（欧洲陶瓷）、VDMA Armaturen（德国阀门）、Abceram（巴西）、Sanitaerwirtschaft（德）、CCST（土耳其）、Acimac（意大利）、NKBA（美国）、Apicer（葡萄牙）、REIC（泰国）、VN Ceramic（越南）
 
 ### 🔍 情报发现
 
@@ -203,3 +198,4 @@ kithbath-intel-dashboard/
 ## License
 
 MIT License — 欢迎 Fork 和二次开发
+交流联系adala7@sina.com
