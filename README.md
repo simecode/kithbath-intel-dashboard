@@ -1,235 +1,205 @@
-# 🛰 行业情报系统 v3.0
+# 🛰 KitchBath Intel — 行业情报系统 v3.5
 
-一个现代化、高性能的行业信息流聚合平台，专注于建筑、卫浴、厨房、装修行业的全球资讯。
+> 全球卫浴、厨房、建材行业实时信息聚合与 AI 分析平台
 
-## ✨ 主要特性
+**在线访问：** [kitchbathintel.streamlit.app](https://kitchbathintel.streamlit.app)
+**代码仓库：** [github.com/simecode/kithbath-intel-dashboard](https://github.com/simecode/kithbath-intel-dashboard)
 
-### 设计与体验
-- **现代化 UI 设计**: 采用扁平化设计风格，卡片式布局，专业清爽的视觉感受
-- **响应式布局**: 完美适配桌面、平板、手机等各种设备
-- **深色/浅色主题**: 支持主题切换，满足不同用户偏好
-- **流畅交互**: 卡片悬停动画、平滑滚动、骨架屏加载等微交互
-- **实时反馈**: 后台静默更新提示、加载状态提示、数据统计显示
+---
 
-### 功能特性
-- **多源聚合**: 支持 RSS 和自定义网页爬虫，聚合全球 20+ 数据源
-- **智能翻译**: 自动翻译非中文标题，支持缓存加速
-- **重要性评分**: 基于关键词的智能重要性评分
-- **灵活排序**: 支持时间优先、重要性优先、综合排序三种模式
-- **数据持久化**: 本地 JSON 存储，支持离线浏览
-- **后台更新**: 独立线程后台更新，不阻塞主界面
+## 功能概览
 
-### 架构优化
-- **数据源外部化**: 配置文件管理数据源，易于扩展
-- **缓存机制**: 多层缓存策略，减少重复计算和 API 调用
-- **性能优化**: 分页加载、增量更新、高效去重
-- **模块化设计**: 清晰的函数划分，易于维护和扩展
+| 模块 | 说明 |
+|------|------|
+| 📰 行业媒体 | 聚合全球 10+ 专业媒体 RSS 与网页，自动翻译、分页浏览 |
+| 🏛 行业协会 | 抓取欧美亚各地行业协会新闻发布页，直达一手政策动态 |
+| 🔍 情报发现 | 基于关键词的全网实时搜索，覆盖 DuckDuckGo 等引擎 |
+| 📡 舆情监督 | 按主题（人事/并购/新品/财务）自动分类，支持自定义关键词追踪 |
+| 🤖 AI 分析报告 | 接入主流大模型（含免费方案），生成结构化行业洞察报告 |
 
-## 🚀 快速开始
+---
+
+## 快速开始
 
 ### 本地运行
 
-#### 1. 克隆或下载项目
 ```bash
-cd vibecoding_v2
-```
+# 1. 克隆仓库
+git clone https://github.com/simecode/kithbath-intel-dashboard.git
+cd kithbath-intel-dashboard
 
-#### 2. 安装依赖
-```bash
+# 2. 安装依赖
 pip install -r requirements.txt
-```
 
-#### 3. 运行应用
-```bash
+# 3. 启动应用
 streamlit run app.py
+# 访问 http://localhost:8501
 ```
 
-应用将在 `http://localhost:8501` 启动。
+### 部署到 Streamlit Cloud（免费）
 
-### 部署到 Streamlit Cloud
+1. 将代码 push 到 GitHub
+2. 访问 [streamlit.io/cloud](https://streamlit.io/cloud)，点击 **New app**
+3. 选择仓库 → 选择 `app.py` → 点击 **Deploy**
+4. 部署完成后自动获得公开访问链接
 
-#### 1. 推送到 GitHub
+---
 
-```bash
-# 初始化 Git 仓库（如果还没有）
-git init
-git add .
-git commit -m "Initial commit: Industry Intelligence System v2.0"
+## 功能详解
 
-# 创建 GitHub 仓库并推送
-git remote add origin https://github.com/YOUR_USERNAME/vibecoding_v2.git
-git branch -M main
-git push -u origin main
+### 📰 行业媒体 / 🏛 行业协会
+
+- **自动抓取**：启动后后台静默更新，每 30 分钟刷新一次（可手动强制刷新）
+- **时间过滤**：支持按 7天 / 30天 / 3个月 / 一年 / 全部 筛选
+- **自动翻译**：开启后将非中文标题/摘要自动译为中文（使用 Google Translate，无需 Key）
+- **排序方式**：时间最新 / 重要性最高 / 综合推荐
+- **分页浏览**：每页 20 条，支持上一页/下一页翻页
+
+**内置数据源：**
+
+媒体端：KBB Review（英）、Kitchen Bath Business（美）、Plumbing & Mechanical（美）、Woodworking Network（美）、SanitaerNews（德）、SDBPRO（法）、Moebelmarkt（德）、Ceramic World Web（国际）、DIY International、Alimarket（西班牙）
+
+协会端：Cerameunie（欧洲陶瓷）、VDMA Armaturen（德国阀门）、Abceram（巴西）、Sanitaerwirtschaft（德）、CCST（土耳其）、Acimac（意大利）、NKBA（美国）、Apicer（葡萄牙）、REIC（泰国）、VN Ceramic（越南）
+
+### 🔍 情报发现
+
+点击「启动全网情报发现」后，系统自动以 `config.json` 中的 `keywords` 关键词组合搜索全网最新资讯，结合行业语境过滤无关内容后聚合显示。
+
+### 📡 舆情监督
+
+**四大预设主题：**
+
+- 👔 **高管人事变动** — 追踪 resign、appoint、CEO、离职、任命等信号词
+- 🤝 **并购与战略合作** — 追踪 acquire、merger、收购、合并等关键词
+- 🚀 **新品与技术发布** — 追踪 launch、new product、发布、创新等词
+- 📈 **财务与市场变化** — 追踪 revenue、layoff、裁员、重组等词
+
+**使用方法：**
+1. 选择统计时间段（近7天 / 1个月 / 3个月 / 6个月）
+2. 顶部数字卡片一目了然地展示各主题命中数量
+3. 展开对应主题查看具体文章列表
+4. 可在「自定义监督关键词」输入框中输入自己关注的词（如 `Kohler CEO, Hansgrohe resign`），进行专项追踪
+
+### 🤖 AI 分析报告
+
+**支持的 AI 提供商：**
+
+| 提供商 | 费用 | 获取 Key |
+|--------|------|---------|
+| 🆓 OpenRouter 免费模型 | 每日免费额度 | [openrouter.ai](https://openrouter.ai) 注册即可 |
+| DeepSeek | 极低价格 | [platform.deepseek.com](https://platform.deepseek.com) |
+| OpenAI GPT-4o mini | 按量计费 | [platform.openai.com](https://platform.openai.com) |
+| Anthropic Claude | 按量计费 | [console.anthropic.com](https://console.anthropic.com) |
+| 通义千问 | 有免费额度 | [dashscope.aliyun.com](https://dashscope.aliyun.com) |
+
+> API Key 仅存在于当前浏览器会话内存中，页面关闭即清除，不会上传或持久化存储。
+
+**报告结构（示例）：**
+1. 主要趋势归纳（4-6个核心趋势）
+2. 企业动态追踪（人事/并购/新品/财务，自动排除媒体平台名称）
+3. 地区市场热度分析
+4. 风险与机会信号识别
+5. 分析师综合点评 + 下季度前瞻
+
+**时间段选项：** 近 3 / 6 / 9 / 12 个月（默认 6 个月）
+
+---
+
+## 数据源配置
+
+所有数据源在 `config.json` 中管理，无需修改 Python 代码即可扩展：
+
+```jsonc
+{
+  "keywords": ["Kohler", "Hansgrohe", ...],   // 情报发现关键词
+
+  "media_rss": {
+    "来源名称": "https://example.com/feed.xml"  // RSS 格式
+  },
+
+  "media_scrape": {
+    "来源名称": {
+      "url": "首页 URL",
+      "news_url": "新闻列表页 URL（推荐直接指向新闻页）",
+      "item": "文章容器 CSS 选择器",
+      "title": "标题链接 CSS 选择器",
+      "summary": "摘要 CSS 选择器（可选）"
+    }
+  },
+
+  "assoc_rss": { ... },   // 协会 RSS 源
+  "assoc_scrape": { ... } // 协会网页抓取源
+}
 ```
 
-#### 2. 在 Streamlit Cloud 部署
-
-1. 访问 [Streamlit Cloud](https://streamlit.io/cloud)
-2. 点击 "New app"
-3. 选择你的 GitHub 仓库和分支
-4. 选择 `app.py` 作为主文件
-5. 点击 "Deploy"
-
-#### 3. 配置环境变量（如需要）
-
-如果使用 AI 摘要功能，需要配置 API Key：
-- 在 Streamlit Cloud 中，进入 "Settings" → "Secrets"
-- 添加必要的环境变量（例如 Anthropic API Key）
-
-## 📋 配置说明
-
-### config.json 结构
+**添加新来源示例：**
 
 ```json
-{
-  "media_rss": {
-    "来源名称": "RSS URL"
-  },
-  "media_scrape": {
-    "来源名称": ["网页 URL", "CSS 选择器"]
-  },
-  "assoc_rss": {
-    "来源名称": "RSS URL"
-  },
-  "assoc_scrape": {
-    "来源名称": ["网页 URL", "CSS 选择器"]
+"media_rss": {
+  "新媒体名称": "https://example.com/news.rss"
+},
+"media_scrape": {
+  "某行业网站": {
+    "url": "https://example.com",
+    "news_url": "https://example.com/news/",
+    "item": "article",
+    "title": "h2 a",
+    "summary": "p.excerpt"
   }
 }
 ```
 
-### 添加新的数据源
+---
 
-#### 添加 RSS 源
-
-在 `config.json` 中的对应类别下添加：
-```json
-"新来源名称": "https://example.com/feed.xml"
-```
-
-#### 添加网页爬虫源
-
-在 `config.json` 中的对应类别下添加：
-```json
-"新来源名称": ["https://example.com/news", "h2 a, h3 a"]
-```
-
-其中第二个参数是 CSS 选择器，用于定位文章链接。
-
-## 🎨 自定义样式
-
-### 修改主题颜色
-
-编辑 `.streamlit/config.toml`：
-```toml
-[theme]
-primaryColor = "#2563eb"  # 主色调
-backgroundColor = "#f5f7fa"  # 背景色
-textColor = "#1f2937"  # 文字色
-```
-
-### 修改 CSS 样式
-
-编辑 `app.py` 中的 `modern_css` 变量，自定义卡片样式、颜色、动画等。
-
-## 📊 数据存储
-
-应用数据存储在以下目录：
+## 项目结构
 
 ```
-vibecoding_v2/
-├── .intel_store/          # 文章数据存储
-│   ├── media.json         # 媒体文章
-│   ├── assoc.json         # 协会文章
-│   └── update_state.json  # 更新状态
-├── .intel_cache/          # 缓存数据
-│   └── *.json             # 翻译和 AI 摘要缓存
-```
-
-## 🔧 故障排除
-
-### 问题：页面加载缓慢
-
-**解决方案**：
-- 检查网络连接
-- 清除浏览器缓存
-- 在 Streamlit Cloud 中增加资源配置
-- 减少数据源数量或增加更新间隔
-
-### 问题：某些数据源无法爬取
-
-**解决方案**：
-- 检查网站是否改变了 HTML 结构，更新 CSS 选择器
-- 检查网站是否有反爬虫机制，考虑添加延迟或更改 User-Agent
-- 测试 URL 是否仍然有效
-
-### 问题：翻译功能不工作
-
-**解决方案**：
-- 检查网络连接
-- 检查 `deep-translator` 库是否正确安装
-- 尝试手动清除缓存文件（`.intel_cache/` 目录）
-
-## 📈 性能优化建议
-
-### 1. 缓存优化
-- 定期清理 `.intel_cache/` 目录中的过期缓存
-- 增加翻译缓存的 TTL（生存时间）
-
-### 2. 数据源优化
-- 定期检查数据源的有效性
-- 移除响应缓慢或经常失败的数据源
-- 为不同类型的数据源设置不同的更新间隔
-
-### 3. 部署优化
-- 在 Streamlit Cloud 中使用 "Advanced settings" 增加超时时间
-- 考虑使用 CDN 加速静态资源
-- 定期备份 `.intel_store/` 目录中的数据
-
-## 🔐 安全建议
-
-1. **API Key 管理**: 如使用 AI 摘要功能，将 API Key 存储在环境变量中，不要提交到代码仓库
-2. **数据隐私**: 定期检查存储的文章数据，确保不包含敏感信息
-3. **依赖更新**: 定期更新 `requirements.txt` 中的依赖，修复安全漏洞
-
-## 📝 文件结构
-
-```
-vibecoding_v2/
-├── app.py                 # 主应用文件
-├── config.json            # 数据源配置
-├── requirements.txt       # Python 依赖
-├── README.md              # 本文档
+kithbath-intel-dashboard/
+├── app.py                  # 主应用（Streamlit）
+├── config.json             # 数据源与关键词配置
+├── requirements.txt        # Python 依赖
+├── README.md               # 本文档
 ├── .streamlit/
-│   └── config.toml        # Streamlit 配置
-├── .intel_store/          # 数据存储（自动创建）
-└── .intel_cache/          # 缓存存储（自动创建）
+│   └── config.toml         # Streamlit 主题配置
+└── .intel_store/           # 运行时自动创建
+    ├── media.json          # 媒体文章缓存
+    ├── assoc.json          # 协会文章缓存
+    ├── discovery.json      # 情报发现缓存
+    └── update_state.json   # 更新时间记录
 ```
-
-## 🤝 贡献指南
-
-欢迎提交 Issue 和 Pull Request！
-
-### 改进方向
-
-- [ ] 添加更多数据源
-- [ ] 支持自定义关键词过滤
-- [ ] 实现用户偏好保存
-- [ ] 添加数据导出功能
-- [ ] 支持邮件订阅
-- [ ] 集成更多 AI 模型
-- [ ] 添加分析报告功能
-
-## 📄 许可证
-
-本项目采用 MIT 许可证。
-
-## 📧 联系方式
-
-如有问题或建议，欢迎通过以下方式联系：
-- 提交 GitHub Issue
-- 发送邮件至 [adala7@sina.com]
 
 ---
 
-**最后更新**: 2026 年 6 月
-**版本**: 3.0.0
+## 常见问题
+
+**Q：页面数据很旧，怎么刷新？**
+点击左侧侧边栏的「🔄 强制刷新所有数据」，约 1-2 分钟后再刷新页面。
+
+**Q：某些来源抓取为空？**
+该网站可能改版了 HTML 结构，需更新 `config.json` 中对应的 CSS 选择器。可用浏览器「检查元素」定位正确选择器后修改。
+
+**Q：翻译失败？**
+自动翻译依赖 Google Translate 的免费接口，在 Streamlit Cloud 上偶尔会被限速。可关闭「启用自动翻译」开关，直接查看原文。
+
+**Q：AI 分析报告里出现了媒体名称当作企业？**
+已在 v3.5 修复：系统会自动将所有来源平台名称传入 AI 提示词，明确告知模型哪些是媒体平台而非行业企业。
+
+**Q：OpenRouter 免费额度不够用？**
+可切换到 DeepSeek（价格极低）或注册多个 OpenRouter 账号轮换使用。
+
+---
+
+## 版本历史
+
+| 版本 | 更新内容 |
+|------|---------|
+| v3.5 | 新增舆情监督模块；修复 AI 分析将媒体名当企业的问题；分析时间段可选（3/6/9/12个月）；HTML 渲染 bug 修复 |
+| v3.0 | 新增 AI 分析报告；支持 OpenRouter 免费模型；分页功能 |
+| v2.5 | 新增情报发现 Tab；多源搜索引擎整合 |
+| v2.0 | 现代化 UI；RSS + 网页双抓取；自动翻译；后台更新 |
+
+---
+
+## License
+
+MIT License — 欢迎 Fork 和二次开发

@@ -330,32 +330,61 @@ def trigger_bg_update(store_path, rss_dict, scrape_dict, state_key, interval_min
 # ============================================================
 # AI 分析功能
 # ============================================================
-def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai") -> str:
-    """用外部大模型对近一年文章进行行业分析"""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=365)
+def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai", months: int = 6) -> str:
+    """用外部大模型对指定月数内文章进行行业分析"""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30 * months)
     recent = [a for a in articles if a.get('dt', '') >= cutoff.isoformat()]
     if not recent:
-        return "暂无近一年的数据可分析，请先刷新数据。"
+        return f"暂无近 {months} 个月的数据可分析，请先刷新数据或扩大时间范围。"
 
-    # 提取标题摘要（最多150条，避免超token）
+    # 收集所有媒体/协会来源名称，供模型排除
+    all_sources = sorted(set(a.get('source', '') for a in recent if a.get('source')))
+    sources_note = "、".join(all_sources[:40])
+
+    # 提取标题摘要（最多200条，格式：[来源] 标题（摘要））
     titles_text = "\n".join([
-        f"- [{a['source']}] {a['title']}" + (f"（{a['raw_summary'][:80]}）" if a.get('raw_summary') else "")
-        for a in recent[:150]
+        f"- [{a['source']}] {a['title']}" + (f"（{a['raw_summary'][:100]}）" if a.get('raw_summary') else "")
+        for a in recent[:200]
     ])
 
-    prompt = f"""你是一位资深的全球卫浴、厨房和建材行业分析师。以下是我的信息流系统近一年（{cutoff.strftime('%Y-%m')} 至今）从全球行业媒体和协会抓取的 {len(recent)} 条资讯标题和摘要：
+    period_label = f"{cutoff.strftime('%Y年%m月')} 至今（约 {months} 个月）"
+
+    prompt = f"""你是一位资深的全球卫浴、厨房和建材行业分析师。
+
+以下是信息流系统在 {period_label} 从全球行业媒体和协会抓取的 {len(recent)} 条资讯，格式为「[来源平台] 标题（摘要）」：
 
 {titles_text}
 
-请对这些信息进行深度分析，输出一份结构化的行业洞察报告，包含：
+=== 重要说明 ===
+方括号内是【信息来源平台名称】，不是企业名称，包括：{sources_note}
+请务必区分：
+- 来源平台（如 KBB Review、SDBPRO、Moebelmarkt、SanitaerNews 等）= 媒体/协会，不是行业企业
+- 真正的行业企业（如 Kohler、Hansgrohe、TOTO、Grohe、Duravit、Roca、LIXIL 等）= 才应出现在企业分析中
 
-1. **主要趋势归纳**（3-5个核心趋势，如高管离职/并购/新品/政策等）
-2. **企业动态分析**（哪些公司频繁出现？发生了什么？意味着什么？）
-3. **地区市场热点**（哪些地区市场最活跃？）
-4. **风险与机会信号**（从这些信息中可以捕捉到哪些早期信号？）
-5. **分析师点评**（综合判断：行业整体处于什么阶段？建议关注什么？）
+=== 请输出以下结构的中文分析报告 ===
 
-请用中文输出，语言专业但易懂，每个部分3-5个要点。"""
+## 一、主要趋势归纳（{period_label}）
+列出 4-6 个核心趋势，每条包含：趋势名称、具体表现、可能原因
+
+## 二、企业动态追踪
+分析真实行业企业（非媒体平台）的重要动态，包括：
+- 人事变动（高管任免、离职）
+- 并购与战略合作
+- 新品发布与技术突破
+- 财务与市场变化
+
+## 三、地区市场热度
+分析欧洲、北美、亚太、中东等各地区市场的活跃程度和关键事件
+
+## 四、风险与机会信号
+从以上资讯中识别：行业潜在风险 / 值得关注的早期机会信号
+
+## 五、分析师综合点评
+- 行业整体所处阶段判断
+- 近期最值得重点关注的 3 件事
+- 对下一季度的前瞻预判
+
+请用专业但易懂的中文输出，避免将媒体平台名称误认为企业。"""
 
     try:
         if provider == "openai" or provider == "deepseek":
@@ -388,7 +417,7 @@ def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai"
             data = res.json()
             return data["output"]["text"]
         elif provider == "openrouter":
-            model = "openrouter/free"
+            model = "google/gemma-3-27b-it:free"
             res = requests.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
@@ -409,6 +438,163 @@ def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai"
             return "不支持的 AI 提供商，请选择 OpenRouter / OpenAI / DeepSeek / Anthropic / 通义千问。"
     except Exception as e:
         return f"AI 分析出错：{str(e)}\n\n请检查 API Key 是否正确，以及网络连接是否正常。"
+
+
+# ============================================================
+# 舆情监督功能
+# ============================================================
+SENTIMENT_STORE = os.path.join(STORE_DIR, "sentiment.json")
+
+# 预设监督主题
+SENTIMENT_THEMES = {
+    "高管人事变动": {
+        "keywords_zh": ["离职", "辞职", "卸任", "任命", "接任", "就任", "CEO", "总裁", "总经理", "董事长", "副总裁", "首席", "高管", "人事"],
+        "keywords_en": ["resign", "appoint", "CEO", "president", "chief", "executive", "director", "step down",
+                        "named", "hire", "fired", "leadership", "management change", "successor", "departure"],
+        "color": "#ef4444",
+        "icon": "👔"
+    },
+    "并购与战略合作": {
+        "keywords_zh": ["收购", "并购", "合并", "战略合作", "投资", "股权", "控股", "联合"],
+        "keywords_en": ["acquire", "acquisition", "merger", "takeover", "investment", "stake", "joint venture",
+                        "partnership", "collaborate", "buy", "purchase"],
+        "color": "#f59e0b",
+        "icon": "🤝"
+    },
+    "新品与技术发布": {
+        "keywords_zh": ["发布", "推出", "新品", "上市", "创新", "专利", "技术突破"],
+        "keywords_en": ["launch", "release", "new product", "innovation", "patent", "unveil", "introduce"],
+        "color": "#10b981",
+        "icon": "🚀"
+    },
+    "财务与市场变化": {
+        "keywords_zh": ["增长", "下滑", "亏损", "盈利", "市场份额", "裁员", "重组", "破产"],
+        "keywords_en": ["revenue", "profit", "loss", "growth", "decline", "layoff", "restructure", "bankruptcy",
+                        "market share", "quarterly", "annual"],
+        "color": "#6366f1",
+        "icon": "📈"
+    }
+}
+
+def match_sentiment_theme(article: Dict, theme_config: Dict) -> bool:
+    """判断文章是否匹配舆情主题"""
+    text = (article.get("title", "") + " " + article.get("raw_summary", "")).lower()
+    kws_zh = theme_config.get("keywords_zh", [])
+    kws_en = theme_config.get("keywords_en", [])
+    for kw in kws_zh + kws_en:
+        if kw.lower() in text:
+            return True
+    return False
+
+def get_sentiment_articles(all_articles: List[Dict], theme_name: str, days: int) -> List[Dict]:
+    """获取指定主题、指定天数内的匹配文章"""
+    theme_config = SENTIMENT_THEMES.get(theme_name, {})
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    matched = [
+        a for a in all_articles
+        if a.get("dt", "") >= cutoff and match_sentiment_theme(a, theme_config)
+    ]
+    matched.sort(key=lambda x: x.get("dt", ""), reverse=True)
+    return matched
+
+def render_sentiment_tab(all_articles: List[Dict], enable_translate: bool):
+    """渲染舆情监督 Tab"""
+    st.markdown("### 📡 舆情监督中心")
+    st.caption("实时追踪行业关键动态，快速感知人事变动、并购消息等重要信号")
+
+    if not all_articles:
+        st.info("⏳ 暂无数据，请先在媒体/协会页刷新数据")
+        return
+
+    # 自定义关键词输入
+    with st.expander("➕ 自定义监督关键词（可选）", expanded=False):
+        custom_kw_input = st.text_input(
+            "输入关键词（英文逗号分隔）",
+            placeholder="例如: Kohler CEO, Hansgrohe resign, TOTO merger",
+            key="custom_sentiment_kw"
+        )
+        custom_days = st.selectbox("自定义时间范围", [7, 30, 90, 180], index=1,
+                                    format_func=lambda x: f"近 {x} 天", key="custom_days")
+        if custom_kw_input.strip():
+            custom_kws = [k.strip() for k in custom_kw_input.split(",") if k.strip()]
+            custom_matched = []
+            cutoff_c = (datetime.now(timezone.utc) - timedelta(days=custom_days)).isoformat()
+            for a in all_articles:
+                if a.get("dt", "") < cutoff_c:
+                    continue
+                text = (a.get("title", "") + " " + a.get("raw_summary", "")).lower()
+                if any(kw.lower() in text for kw in custom_kws):
+                    custom_matched.append(a)
+            custom_matched.sort(key=lambda x: x.get("dt", ""), reverse=True)
+            st.markdown(f"**🔍 自定义监督结果：近 {custom_days} 天内匹配 {len(custom_matched)} 条**")
+            for a in custom_matched[:20]:
+                _render_sentiment_card(a, enable_translate, "#7c3aed")
+
+    st.divider()
+
+    # 预设主题监督面板
+    period_options = {"近7天": 7, "近1个月": 30, "近3个月": 90, "近6个月": 180}
+    selected_period = st.radio("统计时间段", list(period_options.keys()), horizontal=True, key="sentiment_period")
+    selected_days = period_options[selected_period]
+
+    # 汇总数字展示
+    stat_cols = st.columns(len(SENTIMENT_THEMES))
+    for i, (theme_name, theme_cfg) in enumerate(SENTIMENT_THEMES.items()):
+        matched = get_sentiment_articles(all_articles, theme_name, selected_days)
+        with stat_cols[i]:
+            color = theme_cfg["color"]
+            icon = theme_cfg["icon"]
+            st.markdown(
+                f"""<div style="background:white;border-radius:10px;padding:14px;text-align:center;
+                border-top:4px solid {color};box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+                <div style="font-size:24px">{icon}</div>
+                <div style="font-size:28px;font-weight:700;color:{color}">{len(matched)}</div>
+                <div style="font-size:12px;color:#6b7280">{theme_name}</div>
+                </div>""",
+                unsafe_allow_html=True
+            )
+
+    st.markdown("<div style='margin:16px 0'></div>", unsafe_allow_html=True)
+
+    # 分主题详情展示
+    for theme_name, theme_cfg in SENTIMENT_THEMES.items():
+        matched = get_sentiment_articles(all_articles, theme_name, selected_days)
+        color = theme_cfg["color"]
+        icon = theme_cfg["icon"]
+        with st.expander(f"{icon} {theme_name}  —  {selected_period}内 **{len(matched)} 条**", expanded=(theme_name == "高管人事变动")):
+            if not matched:
+                st.info(f"近 {selected_days} 天内暂无 {theme_name} 相关动态")
+            else:
+                for a in matched[:30]:
+                    _render_sentiment_card(a, enable_translate, color)
+
+def _render_sentiment_card(a: Dict, enable_translate: bool, color: str):
+    """渲染单条舆情卡片"""
+    from html import escape
+    title = translate_safe(a.get("title", ""), enable_translate)
+    summary = translate_safe(a.get("raw_summary", ""), enable_translate)
+    dt_str = (a.get("dt", "") or "")[:10]
+    source = a.get("source", "")
+    link = a.get("link", "#").replace('"', "%22")
+
+    title_e = escape(title)
+    summary_e = escape(summary) if summary else ""
+    source_e = escape(source)
+    summary_html = f'<div style="font-size:13px;color:#6b7280;margin:6px 0;line-height:1.6">{summary_e}</div>' if summary_e else ""
+
+    st.markdown(
+        f'''<div style="background:white;border-radius:10px;padding:16px;margin-bottom:10px;
+        border-left:4px solid {color};box-shadow:0 1px 6px rgba(0,0,0,0.08)">
+        <div style="font-size:15px;font-weight:600;margin-bottom:6px">
+            <a href="{link}" target="_blank" style="text-decoration:none;color:#1f2937">{title_e}</a>
+        </div>
+        {summary_html}
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#9ca3af;
+        border-top:1px solid #f3f4f6;padding-top:8px;margin-top:8px">
+            <span>📍 {source_e}</span><span>🕒 {dt_str}</span>
+        </div></div>''',
+        unsafe_allow_html=True
+    )
 
 # ============================================================
 # UI 渲染 - 带分页的文章列表
@@ -533,7 +719,7 @@ def main():
     config = load_data_sources()
 
     with st.sidebar:
-        st.title("🛰 行业情报系统 v3.0")
+        st.title("🛰 行业情报系统 v3.5")
         st.caption("实时监控全球卫浴行业动态")
         st.divider()
 
@@ -583,12 +769,18 @@ def main():
             ["行业媒体", "行业协会", "全部合并"],
             horizontal=True
         )
+        analyze_months = st.select_slider(
+            "分析时间段",
+            options=[3, 6, 9, 12],
+            value=6,
+            format_func=lambda x: f"近 {x} 个月"
+        )
 
         if st.button("🚀 开始生成分析报告", use_container_width=True, type="primary"):
             if not ai_key:
                 st.error("请先输入 API Key")
             else:
-                with st.spinner("AI 正在分析中，请稍候（约30秒）..."):
+                with st.spinner(f"AI 正在分析近 {analyze_months} 个月数据，请稍候（约30-60秒）..."):
                     if analyze_scope == "行业媒体":
                         data = store_read(MEDIA_STORE)
                     elif analyze_scope == "行业协会":
@@ -596,13 +788,16 @@ def main():
                     else:
                         data = store_read(MEDIA_STORE) + store_read(ASSOC_STORE)
 
-                    result = analyze_with_ai(data, ai_key, ai_provider)
+                    result = analyze_with_ai(data, ai_key, ai_provider, months=analyze_months)
                     st.session_state["ai_analysis"] = result
                     st.session_state["ai_analysis_time"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    st.session_state["ai_analysis_months"] = analyze_months
 
     # ---- 主内容区 ----
-    tab_media, tab_assoc, tab_discovery, tab_analysis = st.tabs([
-        "📰 行业媒体", "🏛 行业协会", "🔍 情报发现", "🤖 AI 分析报告"
+    all_articles = store_read(MEDIA_STORE) + store_read(ASSOC_STORE)
+
+    tab_media, tab_assoc, tab_discovery, tab_sentiment, tab_analysis = st.tabs([
+        "📰 行业媒体", "🏛 行业协会", "🔍 情报发现", "📡 舆情监督", "🤖 AI 分析报告"
     ])
 
     with tab_media:
@@ -623,19 +818,27 @@ def main():
         articles = store_read(DISCOVERY_STORE)
         render_list(articles, enable_translate, sort_mode, "discovery")
 
+    with tab_sentiment:
+        render_sentiment_tab(all_articles, enable_translate)
+
     with tab_analysis:
         if "ai_analysis" in st.session_state:
-            st.markdown(f"**📊 分析报告** · 生成于 {st.session_state.get('ai_analysis_time', '')}")
-            st.markdown(f"<div class='analysis-box'>{st.session_state['ai_analysis']}</div>", unsafe_allow_html=True)
-            if st.button("📋 复制报告文本"):
-                st.code(st.session_state["ai_analysis"])
+            months_label = st.session_state.get("ai_analysis_months", 6)
+            st.markdown(f"**📊 行业分析报告** · 分析周期：近 {months_label} 个月 · 生成于 {st.session_state.get('ai_analysis_time', '')}")
+            st.divider()
+            # 用 st.markdown 直接渲染 markdown 内容（不套 HTML div，避免转义问题）
+            st.markdown(st.session_state["ai_analysis"])
+            st.divider()
+            if st.button("📋 展开原始文本（可复制）"):
+                st.code(st.session_state["ai_analysis"], language=None)
         else:
             st.info("💡 请在左侧侧边栏输入 API Key 并点击「开始生成分析报告」，结果将显示在这里。")
             st.markdown("""
 **功能说明：**
-- 自动提取近一年所有抓取到的行业资讯（媒体+协会）
+- 自动提取指定月数内的全部行业资讯（媒体+协会）
 - 通过大模型识别主要趋势、企业动态、市场热点
-- 支持 OpenAI / DeepSeek / Anthropic Claude / 通义千问
+- **已内置媒体来源提示**，模型不会将媒体平台误认为企业
+- 支持 🆓 OpenRouter 免费模型 / OpenAI / DeepSeek / Anthropic / 通义千问
 - API Key 仅在当前浏览器会话使用，不会被存储或上传
             """)
 
