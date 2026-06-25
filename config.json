@@ -1,99 +1,128 @@
 {
   "keywords": [
-    "Kohler.co", "duravit", "villeroy&boch", "hansgrohe", "masco", "moen", "TOTO", "Roca", "lixil", "grohe", "geberit", "gwa facuet", "viega", "laufen", "fortunebrands", "kingfisher.plc", "lowes", "homedepot", "dornbracht",
-    "Sanitaryware", "Bathware", "Plumbing fitting acquire", "Prefabricated Bathroom Unit", "modular bathrooms", "bathroom interiors",
-    "ceramiche, sanitari e lavabi bagno", "ceramica sanitaria", "settore della Rubinetteria sanitaria", "dell’arredo bagno", "La ceramica sanitaria", "Ceramiche Caesar", "Italienische Badkeramik",
-    "Möbelproduktionsbetriebe", "Sanitärkeramik", "Duschkabinenhersteller", "Sanitärprodukte", "Badewannen", "Sanitärarmaturen", "Sanitärbranche", "Sanitärhersteller", "BADEZIMMER", "Duscharmatur", "Küchenhersteller", "Küchenbauer", "Sanitärindustrie", "Armaturenhersteller", "Wasserhahn", "Fertigbäder", "Badaccessoires", "Syngroh capital",
-    "seramik sağlık gereçleri", "Türkiye Seramik Federasyonu", "banyo mobilyaları", "gömme rezervuarlar", "armatür", "Musluk", "ARMATÜR SEKTÖRÜ",
-    "céramique sanitaire", "fabrication de céramique", "robinetterie de cuisine", "colonnes de salle de bains", "Porte de douche", "Meuble salle de bain", "parois de douche",
-    "衛生陶器", "住宅設備機器", "浴槽", "ユニットバスルーム", "システムキッチン", "温水洗浄便座",
-    "위생용도기", "양변기", "욕실건자재", "주방·욕실", "콜러", "대한건설협회", "가구업계", "욕실 리모델링",
-    "ผู้ผลิตก๊อกน้ำ", "อุตساหกรรมเซรามิก", "หน่วยห้องน้ำ", "ก๊อกน้ำ", "หัวฝักบัว", "อ่างล้างหน้า", "เครื่องสุขภัณฑ์", "ห้องน้ำ", "เซรามิก", "วัสดุก่อสร้าง",
-    "Industri Saniter", "الأدوات الصحية", "صناعات الأدوات الصحية", "لوازم الحمامات", "سيراميك رأس الخيمة", "خلاطات", "هانز جروهي", "ديورافيت",
-    "সিরামিক কারখানা", "керамических сантехнических", "санфаянс", "смесителей", "производство керамики", "унитазов", "Рока Сантехника", "са니타리 세라믹",
-    "Sanitarios", "cuarto de baño", "sanitarios cerámica", "Azulejos y Baldosas", "Equipamiento Baño", "louças sanitárias", "metais sanitários"
+    "Kohler", "Duravit", "Villeroy Boch", "Hansgrohe", "Masco", "Moen", "TOTO", "Roca", "LIXIL", "Grohe", "Geberit", "Viega", "Laufen", "Fortune Brands", "Kingfisher", "Dornbracht",
+    "Sanitaryware", "Bathware", "Plumbing acquisition", "Prefabricated Bathroom", "modular bathroom", "bathroom renovation",
+    "ceramic sanitaria", "Sanitärkeramik", "Badezimmer", "céramique sanitaire", "robinetterie",
+    "bathroom CEO resign", "kitchen cabinet merger", "faucet brand acquisition", "sanitary market trend"
   ],
+
   "media_rss": {
-    "House News": "https://www.housenews.jp/rss",
-    "KBB 评论": "https://www.kbbreview.com/feed/",
-    "木工网": "https://www.woodworkingnetwork.com/rss.xml"
+    "KBB Review": "https://www.kbbreview.com/feed/",
+    "House News JP": "https://www.housenews.jp/rss",
+    "Woodworking Network": "https://www.woodworkingnetwork.com/rss.xml",
+    "Supply HT": "https://www.supplyht.com/rss/topic/2729",
+    "Ceramic World Web": "https://ceramicworldweb.com/index.php/en/feed"
   },
+
   "media_scrape": {
     "SanitaerNews": {
       "url": "https://www.sanitaernews.de/",
-      "item": "div.article",
-      "title": "h1 a",
-      "summary": "p",
-      "date": "div.date"
+      "news_url": "https://www.sanitaernews.de/news/",
+      "item": "article, .article-item, .news-item",
+      "title": "h2 a, h3 a, .article-title a",
+      "summary": "p, .excerpt, .teaser"
     },
     "SDBPRO": [
-      "https://www.sdbpro.fr/industrie/",
-      "h2 a, h3 a"
+      "https://www.sdbpro.fr/",
+      "h2 a, h3 a, .entry-title a",
+      "https://www.sdbpro.fr/industrie/"
     ],
     "Moebelmarkt": [
-      "https://www.moebelmarkt.de/news",
-      "h2 a, h3 a"
+      "https://www.moebelmarkt.de/",
+      "h2 a, h3 a",
+      "https://www.moebelmarkt.de/news"
     ],
     "Alimarket": {
-      "url": "https://www.alimarket.es/construccion/noticias",
-      "item": "div.noticia",
-      "title": "h1 a",
-      "summary": "p",
-      "date": "span.fecha"
+      "url": "https://www.alimarket.es/",
+      "news_url": "https://www.alimarket.es/construccion/noticias",
+      "item": ".noticia, article, .news-item",
+      "title": "h2 a, h3 a, .title a",
+      "summary": "p, .excerpt"
     },
-    "SupplyHT": [
-      "https://www.supplyht.com/articles/topic/2729",
-      "h2 a, h3 a"
-    ],
     "DIY International": [
       "https://www.diyinternational.com/",
-      "h2 a, h3 a"
-    ],
-    "Ceramic World Web": [
-      "https://ceramicworldweb.com/index.php/en",
-      "h2 a, h3 a"
+      "h2 a, h3 a, .entry-title a",
+      "https://www.diyinternational.com/news/"
     ],
     "Industry ID": [
-      "https://www.industry.co.id/industri/keramik",
-      "h4 a"
+      "https://www.industry.co.id/",
+      "h4 a, h3 a",
+      "https://www.industry.co.id/industri/keramik"
+    ],
+    "Kitchen Bath Business": [
+      "https://www.kitchenbathbusiness.com/",
+      "h2 a, h3 a, .article-title a",
+      "https://www.kitchenbathbusiness.com/news/"
+    ],
+    "Plumbing & Mechanical": [
+      "https://www.pmmag.com/",
+      "h2 a, h3 a",
+      "https://www.pmmag.com/articles"
     ]
   },
+
   "assoc_rss": {
     "Cerameunie": "https://cerameunie.eu/rss",
-    "Abceram BR": "https://abceram.org.br/feed"
+    "Abceram BR": "https://abceram.org.br/feed",
+    "VDMA Armaturen": "https://www.vdma.org/rss/en/news"
   },
+
   "assoc_scrape": {
-    "VN Ceramic": [
-      "https://vnceramic.org.vn/",
-      "h2 a, h3 a"
-    ],
-    "Sanitaerwirtschaft": [
-      "https://www.sanitaerwirtschaft.de/aktuell",
-      "h2 a, h3 a"
-    ],
-    "CCST": [
-      "https://ccst.org.tr/haberler",
-      "li a"
-    ],
-    "CAB Badania": [
-      "https://cab-badania.pl/en/",
-      "li a"
-    ],
-    "Apicer PT": [
-      "https://www.apicer.pt/apicer/pt/noticias",
-      "li a"
-    ],
-    "REIC Thailand": [
-      "https://www.reic.or.th/",
-      "li a"
-    ],
-    "VDMA": [
-      "https://www.vdma.eu/de/armaturen",
-      "h2 a, h3 a"
-    ],
-    "Acimac": [
-      "https://www.acimac.it/news-di-settore/",
-      "h2 a, h3 a"
-    ]
+    "VN Ceramic": {
+      "url": "https://vnceramic.org.vn/",
+      "news_url": "https://vnceramic.org.vn/tin-tuc",
+      "item": "article, .post-item, li.item",
+      "title": "h2 a, h3 a, .title a",
+      "summary": "p, .excerpt"
+    },
+    "Sanitaerwirtschaft": {
+      "url": "https://www.sanitaerwirtschaft.de/",
+      "news_url": "https://www.sanitaerwirtschaft.de/aktuell",
+      "item": "article, .news-item, .article",
+      "title": "h2 a, h3 a",
+      "summary": "p"
+    },
+    "CCST Turkey": {
+      "url": "https://ccst.org.tr/",
+      "news_url": "https://ccst.org.tr/haberler",
+      "item": ".news-item, article, .haber-item",
+      "title": "h2 a, h3 a, a.title",
+      "summary": "p, .excerpt"
+    },
+    "Apicer PT": {
+      "url": "https://www.apicer.pt/",
+      "news_url": "https://www.apicer.pt/apicer/pt/noticias",
+      "item": "article, .news-item, li.noticia",
+      "title": "h2 a, h3 a, .title a",
+      "summary": "p"
+    },
+    "REIC Thailand": {
+      "url": "https://www.reic.or.th/",
+      "news_url": "https://www.reic.or.th/news",
+      "item": "article, .news-item, .entry",
+      "title": "h2 a, h3 a",
+      "summary": "p, .excerpt"
+    },
+    "Acimac IT": {
+      "url": "https://www.acimac.it/",
+      "news_url": "https://www.acimac.it/news-di-settore/",
+      "item": "article, .news-item",
+      "title": "h2 a, h3 a",
+      "summary": "p"
+    },
+    "CAB Badania PL": {
+      "url": "https://cab-badania.pl/",
+      "news_url": "https://cab-badania.pl/en/news/",
+      "item": "article, .post, .news-entry",
+      "title": "h2 a, h3 a",
+      "summary": "p"
+    },
+    "NKBA USA": {
+      "url": "https://nkba.org/",
+      "news_url": "https://nkba.org/news/",
+      "item": "article, .news-item, .post",
+      "title": "h2 a, h3 a",
+      "summary": "p, .excerpt"
+    }
   }
 }
