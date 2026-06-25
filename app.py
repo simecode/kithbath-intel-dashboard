@@ -361,13 +361,22 @@ def scrape_site(name: str, config_data) -> List[Dict]:
     return articles
 
 def search_discovery(keywords: List[str]) -> List[Dict]:
+    """多引擎行业情报搜索引擎 (强化相关性过滤)"""
     articles = []
     import random
+    
+    # 每次搜索随机选择 3 个关键词
     selected_kws = random.sample(keywords, min(len(keywords), 3))
+    
+    # 行业核心约束词
+    industry_context = "bathroom sanitary plumbing ceramic faucet"
+    
     for kw in selected_kws:
-        # DuckDuckGo News
+        # 策略 1: DuckDuckGo News (强制锁定新闻和时间)
         try:
-            url = f"https://html.duckduckgo.com/html/?q={kw.replace(' ', '+')}+industry+news&df=w"
+            # 强化搜索词，确保相关性
+            search_query = f'"{kw}" {industry_context} news'
+            url = f"https://html.duckduckgo.com/html/?q={search_query.replace(' ', '+')}&df=w"
             res = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, "html.parser")
@@ -375,18 +384,24 @@ def search_discovery(keywords: List[str]) -> List[Dict]:
                     a = r.select_one('.result__a')
                     snippet = r.select_one('.result__snippet')
                     if a and a.get('href'):
-                        articles.append({
-                            "title": f"✨ {a.get_text(strip=True)}",
-                            "link": a['href'],
-                            "source": f"发现: {kw}",
-                            "dt": datetime.now(timezone.utc).isoformat(),
-                            "raw_summary": snippet.get_text(strip=True) if snippet else "",
-                            "fetched_at": datetime.now(timezone.utc).isoformat(),
-                        })
+                        title = a.get_text(strip=True)
+                        snip_text = snippet.get_text().lower() if snippet else ""
+                        # 二次过滤：标题或摘要必须包含关键词或行业词
+                        if any(x.lower() in title.lower() or x.lower() in snip_text for x in [kw] + industry_context.split()):
+                            articles.append({
+                                "title": f"✨ {title}",
+                                "link": a['href'],
+                                "source": f"最新发现: {kw}",
+                                "dt": datetime.now(timezone.utc).isoformat(),
+                                "raw_summary": snippet.get_text(strip=True) if snippet else "",
+                                "fetched_at": datetime.now(timezone.utc).isoformat(),
+                            })
         except: pass
-        # Bing News
+
+        # 策略 2: Bing News
         try:
-            url = f"https://www.bing.com/news/search?q={kw.replace(' ', '+')}+industry&qft=interval%3d\"7\""
+            search_query = f'"{kw}" {industry_context}'
+            url = f"https://www.bing.com/news/search?q={search_query.replace(' ', '+')}&qft=interval%3d\"7\""
             res = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, "html.parser")
@@ -394,8 +409,9 @@ def search_discovery(keywords: List[str]) -> List[Dict]:
                     t_el = item.select_one('.title')
                     s_el = item.select_one('.snippet')
                     if t_el and t_el.get('href'):
+                        title = t_el.get_text(strip=True)
                         articles.append({
-                            "title": f"🌐 {t_el.get_text(strip=True)}",
+                            "title": f"🌐 {title}",
                             "link": t_el['href'],
                             "source": f"Bing新闻: {kw}",
                             "dt": datetime.now(timezone.utc).isoformat(),

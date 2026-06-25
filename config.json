@@ -1,16 +1,17 @@
 {
   "keywords": [
+    "Kohler.co", "duravit", "villeroy&boch", "hansgrohe", "masco", "moen", "TOTO", "Roca", "lixil", "grohe", "geberit", "gwa facuet", "viega", "laufen", "fortunebrands", "kingfisher.plc", "lowes", "homedepot", "dornbracht",
     "Sanitaryware", "Bathware", "Plumbing fitting acquire", "Prefabricated Bathroom Unit", "modular bathrooms", "bathroom interiors",
-    "ceramiche sanitari bagno", "ceramica sanitaria", "Rubinetteria sanitaria", "arredo bagno", "Ceramiche Caesar", "Italienische Badkeramik",
-    "Sanitärkeramik", "Duschkabinenhersteller", "Sanitärprodukte", "Badewannen", "Sanitärarmaturen", "Sanitärbranche", "Sanitärhersteller", "BADEZIMMER",
-    "Duschkabinen", "Möbeln für Bäder", "Küchenhersteller", "Küchenbauer", "Sanitärindustrie", "Armaturenhersteller", "Duscharmatur", "Mitigeurs",
-    "Küchenarmaturen", "Küchenbecken", "Badausstatter", "Hüppe Duschwannen", "Fertigbäder", "Wasserhahn", "Hansgrohe", "Dusch-WCs", "Taharet-WCs",
-    "seramik sağlık gereçleri", "Türkiye Seramik", "banyo mobilyaları", "gömme rezervuarlar", "armatür", "temassız armatür", "Musluk", "ARMATÜR SEKTÖRÜ",
-    "thiết bị vệ sinh", "Chậu rửa", "Tủ kệ phòng tắm", "Nắp bồn cầu điện tử", "vòi nước", "Bồn tắm", "bồn cầu", "Sứ vệ sinh", "tủ nhà tắm", "gốm sứ xây dựng",
-    "céramique sanitaire", "robinetteries", "douches de tête", "Meuble salle de bain", "parois de douche", "衛生陶器", "住宅設備機器", "浴槽", "ユニットバス", "システムキッチン",
-    "温水洗浄便座", "水栓金具", "위생도기", "도자기공장", "양변기", "욕실건자재", "주방용품", "สุขภัณฑ์", "ก๊อกน้ำ", "อ่างล้างหน้า", "ตู้ห้องน้ำ", "อ่างอาบน้ำ", "ห้องอาบน้ำ", "ชักโครก",
-    "Barang saniter", "Industri Saniter", "الأدوات الصحية", "لوازم الحمامات", "سيراميك رأس الخيمة", "সিরামিক", "санитарная керамика", "санфаянс", "смеситель", "унитаз",
-    "Sanitarios", "cuarto de baño", "Azulejos", "Grifería", "Platos de Ducha", "Equipamiento Baño", "louças sanitárias", "metais sanitários"
+    "ceramiche, sanitari e lavabi bagno", "ceramica sanitaria", "settore della Rubinetteria sanitaria", "dell’arredo bagno", "La ceramica sanitaria", "Ceramiche Caesar", "Italienische Badkeramik",
+    "Möbelproduktionsbetriebe", "Sanitärkeramik", "Duschkabinenhersteller", "Sanitärprodukte", "Badewannen", "Sanitärarmaturen", "Sanitärbranche", "Sanitärhersteller", "BADEZIMMER", "Duscharmatur", "Küchenhersteller", "Küchenbauer", "Sanitärindustrie", "Armaturenhersteller", "Wasserhahn", "Fertigbäder", "Badaccessoires", "Syngroh capital",
+    "seramik sağlık gereçleri", "Türkiye Seramik Federasyonu", "banyo mobilyaları", "gömme rezervuarlar", "armatür", "Musluk", "ARMATÜR SEKTÖRÜ",
+    "céramique sanitaire", "fabrication de céramique", "robinetterie de cuisine", "colonnes de salle de bains", "Porte de douche", "Meuble salle de bain", "parois de douche",
+    "衛生陶器", "住宅設備機器", "浴槽", "ユニットバスルーム", "システムキッチン", "温水洗浄便座",
+    "위생용도기", "양변기", "욕실건자재", "주방·욕실", "콜러", "대한건설협회", "가구업계", "욕실 리모델링",
+    "ผู้ผลิตก๊อกน้ำ", "อุตساหกรรมเซรามิก", "หน่วยห้องน้ำ", "ก๊อกน้ำ", "หัวฝักบัว", "อ่างล้างหน้า", "เครื่องสุขภัณฑ์", "ห้องน้ำ", "เซรามิก", "วัสดุก่อสร้าง",
+    "Industri Saniter", "الأدوات الصحية", "صناعات الأدوات الصحية", "لوازم الحمامات", "سيراميك رأس الخيمة", "خلاطات", "هانز جروهي", "ديورافيت",
+    "সিরামিক কারখানা", "керамических сантехнических", "санфаянс", "смесителей", "производство керамики", "унитазов", "Рока Сантехника", "са니타리 세라믹",
+    "Sanitarios", "cuarto de baño", "sanitarios cerámica", "Azulejos y Baldosas", "Equipamiento Baño", "louças sanitárias", "metais sanitários"
   ],
   "media_rss": {
     "House News": "https://www.housenews.jp/rss",
@@ -41,7 +42,7 @@
       "date": "span.fecha"
     },
     "SupplyHT": [
-      "https://www.supplyht.com/topics/2649-plumbing",
+      "https://www.supplyht.com/articles/topic/2729",
       "h2 a, h3 a"
     ],
     "DIY International": [
