@@ -441,158 +441,352 @@ def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai"
 
 
 # ============================================================
-# 舆情监督功能
+# 舆情监督功能 v2 — 精准复合匹配 + 可选 AI 二次筛选
 # ============================================================
-SENTIMENT_STORE = os.path.join(STORE_DIR, "sentiment.json")
 
-# 预设监督主题
+# ---- 主题定义：采用「必须命中 + 加分词」双层逻辑 ----
 SENTIMENT_THEMES = {
     "高管人事变动": {
-        "keywords_zh": ["离职", "辞职", "卸任", "任命", "接任", "就任", "CEO", "总裁", "总经理", "董事长", "副总裁", "首席", "高管", "人事"],
-        "keywords_en": ["resign", "appoint", "CEO", "president", "chief", "executive", "director", "step down",
-                        "named", "hire", "fired", "leadership", "management change", "successor", "departure"],
+        "must_any_zh": ["离职", "辞职", "卸任", "退休", "接任", "就任", "任命为", "升任", "出任", "新任"],
+        "must_any_en": ["resign", "steps down", "step down", "departure", "appointed as", "named as",
+                        "new CEO", "new president", "successor", "replaces", "takes over as",
+                        "joins as", "promoted to", "hired as", "fired", "ousted"],
+        "boost_zh": ["CEO", "总裁", "董事长", "总经理", "首席执行官", "副总裁"],
+        "boost_en": ["CEO", "president", "chairman", "chief", "executive", "VP"],
+        "exclude_if_en": ["award", "conference", "exhibition", "show", "report", "study",
+                          "trend", "market", "product", "collection", "design"],
         "color": "#ef4444",
-        "icon": "👔"
+        "icon": "\U0001f454"
     },
     "并购与战略合作": {
-        "keywords_zh": ["收购", "并购", "合并", "战略合作", "投资", "股权", "控股", "联合"],
-        "keywords_en": ["acquire", "acquisition", "merger", "takeover", "investment", "stake", "joint venture",
-                        "partnership", "collaborate", "buy", "purchase"],
+        "must_any_zh": ["收购", "并购", "合并", "战略合作", "入股", "控股", "股权转让", "联合成立"],
+        "must_any_en": ["acquires", "acquired", "acquisition", "merger", "merges", "takeover",
+                        "buys", "purchased", "joint venture", "strategic partnership", "stakes in",
+                        "invest in", "investment in", "equity stake"],
+        "boost_zh": ["投资", "合作"],
+        "boost_en": ["deal", "billion", "million", "agreement"],
+        "exclude_if_en": ["award", "conference", "exhibition"],
         "color": "#f59e0b",
-        "icon": "🤝"
+        "icon": "\U0001f91d"
     },
     "新品与技术发布": {
-        "keywords_zh": ["发布", "推出", "新品", "上市", "创新", "专利", "技术突破"],
-        "keywords_en": ["launch", "release", "new product", "innovation", "patent", "unveil", "introduce"],
+        "must_any_zh": ["发布", "推出", "上市", "新品", "首发", "全新", "专利获批", "技术突破"],
+        "must_any_en": ["launches", "unveiled", "introduces", "new product", "debut",
+                        "released", "announcing", "patent granted", "breakthrough"],
+        "boost_zh": ["创新", "智能", "节水"],
+        "boost_en": ["award", "design", "smart", "IoT", "sustainable"],
+        "exclude_if_en": [],
         "color": "#10b981",
-        "icon": "🚀"
+        "icon": "\U0001f680"
     },
     "财务与市场变化": {
-        "keywords_zh": ["增长", "下滑", "亏损", "盈利", "市场份额", "裁员", "重组", "破产"],
-        "keywords_en": ["revenue", "profit", "loss", "growth", "decline", "layoff", "restructure", "bankruptcy",
-                        "market share", "quarterly", "annual"],
+        "must_any_zh": ["裁员", "亏损", "盈利增长", "营收下滑", "破产", "重组", "市场份额", "季报", "年报"],
+        "must_any_en": ["layoffs", "job cuts", "bankruptcy", "restructuring", "revenue decline",
+                        "profit warning", "quarterly results", "annual report", "market share",
+                        "sales drop", "record revenue", "earnings"],
+        "boost_zh": ["增长", "下滑"],
+        "boost_en": ["billion", "million", "percent", "growth", "decline"],
+        "exclude_if_en": ["award", "exhibition", "conference"],
         "color": "#6366f1",
-        "icon": "📈"
+        "icon": "\U0001f4c8"
     }
 }
 
-def match_sentiment_theme(article: Dict, theme_config: Dict) -> bool:
-    """判断文章是否匹配舆情主题"""
-    text = (article.get("title", "") + " " + article.get("raw_summary", "")).lower()
-    kws_zh = theme_config.get("keywords_zh", [])
-    kws_en = theme_config.get("keywords_en", [])
-    for kw in kws_zh + kws_en:
-        if kw.lower() in text:
-            return True
-    return False
+
+def match_sentiment_theme(article: Dict, theme_config: Dict) -> tuple:
+    """精准复合匹配。返回 (matched: bool, confidence: int)"""
+    title = article.get("title", "") or ""
+    summary = article.get("raw_summary", "") or ""
+    text = (title + " " + summary).lower()
+
+    must_zh = theme_config.get("must_any_zh", [])
+    must_en = theme_config.get("must_any_en", [])
+    boost_zh = theme_config.get("boost_zh", [])
+    boost_en = theme_config.get("boost_en", [])
+    excludes = theme_config.get("exclude_if_en", [])
+
+    hit_must = any(kw.lower() in text for kw in must_zh + must_en)
+    if not hit_must:
+        return False, 0
+
+    hit_exclude = any(kw.lower() in text for kw in excludes) if excludes else False
+    boost_score = sum(1 for kw in boost_zh + boost_en if kw.lower() in text)
+
+    if hit_exclude and boost_score == 0:
+        return False, 0
+
+    confidence = 2 if boost_score >= 1 else 1
+    return True, confidence
+
 
 def get_sentiment_articles(all_articles: List[Dict], theme_name: str, days: int) -> List[Dict]:
-    """获取指定主题、指定天数内的匹配文章"""
+    """获取指定主题、指定天数内的匹配文章，按置信度+时间排序"""
     theme_config = SENTIMENT_THEMES.get(theme_name, {})
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    matched = [
-        a for a in all_articles
-        if a.get("dt", "") >= cutoff and match_sentiment_theme(a, theme_config)
-    ]
-    matched.sort(key=lambda x: x.get("dt", ""), reverse=True)
+    matched = []
+    for a in all_articles:
+        if (a.get("dt", "") or "") < cutoff:
+            continue
+        hit, conf = match_sentiment_theme(a, theme_config)
+        if hit:
+            matched.append({**a, "_confidence": conf})
+    matched.sort(key=lambda x: (x.get("_confidence", 0), x.get("dt", "")), reverse=True)
     return matched
+
+
+def ai_classify_sentiment(articles: List[Dict], theme_name: str, api_key: str, provider: str) -> List[Dict]:
+    """用大模型对候选文章做二次精准分类"""
+    if not articles or not api_key:
+        return articles
+    batch = articles[:30]
+    items_text = "\n".join([
+        f"{i+1}. [{a.get('source','')}] {a.get('title','')}（{a.get('raw_summary','')[:80]}）"
+        for i, a in enumerate(batch)
+    ])
+    prompt = f"""你是行业分析助手。以下是 {len(batch)} 条卫浴/厨房/建材行业资讯：
+
+{items_text}
+
+主题：**{theme_name}**
+
+判断每条是否真正属于该主题（仅会议/展会/奖项/设计趋势不算）。
+来源名称（方括号内）是媒体平台，不是企业，忽略之。
+
+只返回 JSON 数组：
+[{{"id": 1, "relevant": true, "reason": "原因"}}, ...]"""
+
+    try:
+        result_text = ""
+        if provider in ("openai", "deepseek"):
+            base_url = "https://api.openai.com/v1" if provider == "openai" else "https://api.deepseek.com/v1"
+            model = "gpt-4o-mini" if provider == "openai" else "deepseek-chat"
+            res = requests.post(f"{base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 1500},
+                timeout=60)
+            result_text = res.json()["choices"][0]["message"]["content"]
+        elif provider == "openrouter":
+            res = requests.post("https://openrouter.ai/api/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json",
+                         "HTTP-Referer": "https://kitchbathintel.streamlit.app"},
+                json={"model": "google/gemma-3-27b-it:free",
+                      "messages": [{"role": "user", "content": prompt}], "max_tokens": 1500},
+                timeout=90)
+            result_text = res.json()["choices"][0]["message"]["content"]
+        elif provider == "anthropic":
+            res = requests.post("https://api.anthropic.com/v1/messages",
+                headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"},
+                json={"model": "claude-haiku-4-5-20251001", "max_tokens": 1500,
+                      "messages": [{"role": "user", "content": prompt}]},
+                timeout=60)
+            result_text = res.json()["content"][0]["text"]
+        elif provider in ("qwen", "tongyi"):
+            res = requests.post(
+                "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={"model": "qwen-turbo", "input": {"messages": [{"role": "user", "content": prompt}]}},
+                timeout=60)
+            result_text = res.json()["output"]["text"]
+
+        import re as _re
+        json_match = _re.search(r'\[.*?\]', result_text, _re.DOTALL)
+        if json_match:
+            classifications = json.loads(json_match.group())
+            class_map = {item["id"]: item for item in classifications}
+            for i, a in enumerate(batch):
+                cls = class_map.get(i + 1, {})
+                a["_ai_relevant"] = cls.get("relevant", True)
+                a["_ai_reason"] = cls.get("reason", "")
+        return articles
+    except Exception as e:
+        print(f"AI 分类出错: {e}")
+        return articles
+
 
 def render_sentiment_tab(all_articles: List[Dict], enable_translate: bool):
     """渲染舆情监督 Tab"""
     st.markdown("### 📡 舆情监督中心")
-    st.caption("实时追踪行业关键动态，快速感知人事变动、并购消息等重要信号")
+    st.caption("精准追踪行业关键动态：人事变动、并购消息、新品发布、财务预警")
 
     if not all_articles:
-        st.info("⏳ 暂无数据，请先在媒体/协会页刷新数据")
+        st.info("⏳ 暂无数据，请先在媒体/协会页点击「强制刷新」")
         return
 
-    # 自定义关键词输入
-    with st.expander("➕ 自定义监督关键词（可选）", expanded=False):
+    # ---- 顶部控制区：自定义关键词 + AI 设置（放在主区域而非 expander，避免 state 丢失）----
+    sent_col1, sent_col2 = st.columns([3, 2])
+    with sent_col1:
+        st.markdown("**🔍 自定义关键词追踪**")
         custom_kw_input = st.text_input(
-            "输入关键词（英文逗号分隔）",
-            placeholder="例如: Kohler CEO, Hansgrohe resign, TOTO merger",
-            key="custom_sentiment_kw"
+            "关键词",
+            placeholder="例如: Kohler CEO resign, Hansgrohe merger",
+            key="custom_sentiment_kw",
+            label_visibility="collapsed"
         )
-        custom_days = st.selectbox("自定义时间范围", [7, 30, 90, 180], index=1,
-                                    format_func=lambda x: f"近 {x} 天", key="custom_days")
-        if custom_kw_input.strip():
+        custom_days = st.select_slider(
+            "追踪时间范围",
+            options=[7, 30, 90, 180],
+            value=30,
+            format_func=lambda x: f"近 {x} 天",
+            key="custom_sent_days"
+        )
+    with sent_col2:
+        st.markdown("**🤖 AI 精准筛选（可选）**")
+        use_ai_filter = st.checkbox("启用 AI 过滤去除误匹配", key="sentiment_use_ai")
+        sent_ai_provider = st.selectbox(
+            "AI提供商",
+            ["openrouter", "openai", "deepseek", "anthropic", "qwen"],
+            format_func=lambda x: {
+                "openrouter": "🆓 OpenRouter 免费",
+                "openai": "OpenAI", "deepseek": "DeepSeek",
+                "anthropic": "Anthropic", "qwen": "通义千问"
+            }[x],
+            key="sentiment_ai_provider",
+            label_visibility="collapsed"
+        )
+        sent_api_key = st.text_input(
+            "API Key",
+            type="password",
+            key="sentiment_api_key",
+            placeholder="sk-...",
+            label_visibility="collapsed"
+        )
+
+    # 自定义关键词结果（直接显示，按钮触发）
+    if custom_kw_input.strip():
+        if st.button("🔎 搜索", key="custom_kw_search"):
             custom_kws = [k.strip() for k in custom_kw_input.split(",") if k.strip()]
-            custom_matched = []
             cutoff_c = (datetime.now(timezone.utc) - timedelta(days=custom_days)).isoformat()
+            custom_matched = []
             for a in all_articles:
-                if a.get("dt", "") < cutoff_c:
+                if (a.get("dt", "") or "") < cutoff_c:
                     continue
                 text = (a.get("title", "") + " " + a.get("raw_summary", "")).lower()
                 if any(kw.lower() in text for kw in custom_kws):
                     custom_matched.append(a)
             custom_matched.sort(key=lambda x: x.get("dt", ""), reverse=True)
-            st.markdown(f"**🔍 自定义监督结果：近 {custom_days} 天内匹配 {len(custom_matched)} 条**")
-            for a in custom_matched[:20]:
-                _render_sentiment_card(a, enable_translate, "#7c3aed")
+
+            if use_ai_filter and sent_api_key and custom_matched:
+                with st.spinner(f"AI 正在精准筛选 {min(len(custom_matched),30)} 条..."):
+                    theme_label = "自定义：" + "、".join(custom_kws[:3])
+                    custom_matched = ai_classify_sentiment(custom_matched, theme_label, sent_api_key, sent_ai_provider)
+                    custom_matched = [a for a in custom_matched if a.get("_ai_relevant", True)]
+
+            st.session_state["custom_kw_results"] = custom_matched
+            st.session_state["custom_kw_label"] = f"近 {custom_days} 天 / 关键词: {', '.join(custom_kws[:3])}"
+
+    if "custom_kw_results" in st.session_state:
+        results = st.session_state["custom_kw_results"]
+        label = st.session_state.get("custom_kw_label", "")
+        st.markdown(f"**🔍 自定义追踪：{label} — 匹配 {len(results)} 条**")
+        if results:
+            for a in results[:25]:
+                _render_sentiment_card(a, enable_translate, "#7c3aed", show_ai_reason=True)
+        else:
+            st.info("未找到匹配内容，请调整关键词或扩大时间范围")
 
     st.divider()
 
-    # 预设主题监督面板
+    # ---- 预设主题监督面板 ----
     period_options = {"近7天": 7, "近1个月": 30, "近3个月": 90, "近6个月": 180}
-    selected_period = st.radio("统计时间段", list(period_options.keys()), horizontal=True, key="sentiment_period")
+    selected_period = st.radio(
+        "统计时间段", list(period_options.keys()), horizontal=True, key="sentiment_period"
+    )
     selected_days = period_options[selected_period]
 
-    # 汇总数字展示
+    # 汇总数字卡片
     stat_cols = st.columns(len(SENTIMENT_THEMES))
+    theme_counts = {}
     for i, (theme_name, theme_cfg) in enumerate(SENTIMENT_THEMES.items()):
         matched = get_sentiment_articles(all_articles, theme_name, selected_days)
+        theme_counts[theme_name] = matched
+        color = theme_cfg["color"]
+        icon = theme_cfg["icon"]
         with stat_cols[i]:
-            color = theme_cfg["color"]
-            icon = theme_cfg["icon"]
             st.markdown(
-                f"""<div style="background:white;border-radius:10px;padding:14px;text-align:center;
-                border-top:4px solid {color};box-shadow:0 2px 8px rgba(0,0,0,0.08)">
-                <div style="font-size:24px">{icon}</div>
-                <div style="font-size:28px;font-weight:700;color:{color}">{len(matched)}</div>
-                <div style="font-size:12px;color:#6b7280">{theme_name}</div>
-                </div>""",
+                f'<div style="background:white;border-radius:10px;padding:14px;text-align:center;'
+                f'border-top:4px solid {color};box-shadow:0 2px 8px rgba(0,0,0,0.08)">'
+                f'<div style="font-size:22px">{icon}</div>'
+                f'<div style="font-size:26px;font-weight:700;color:{color}">{len(matched)}</div>'
+                f'<div style="font-size:11px;color:#6b7280">{theme_name}</div>'
+                f'</div>',
                 unsafe_allow_html=True
             )
 
-    st.markdown("<div style='margin:16px 0'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin:12px 0'></div>", unsafe_allow_html=True)
 
-    # 分主题详情展示
+    # 分主题详情
     for theme_name, theme_cfg in SENTIMENT_THEMES.items():
-        matched = get_sentiment_articles(all_articles, theme_name, selected_days)
+        matched = theme_counts[theme_name]
         color = theme_cfg["color"]
         icon = theme_cfg["icon"]
-        with st.expander(f"{icon} {theme_name}  —  {selected_period}内 **{len(matched)} 条**", expanded=(theme_name == "高管人事变动")):
+        is_first = theme_name == "高管人事变动"
+        with st.expander(f"{icon} {theme_name} — {selected_period}内 {len(matched)} 条", expanded=is_first):
             if not matched:
-                st.info(f"近 {selected_days} 天内暂无 {theme_name} 相关动态")
+                st.info(f"近 {selected_days} 天内暂无精准匹配的{theme_name}动态")
+                st.caption("💡 可尝试启用 AI 精准筛选，或在自定义关键词中输入更具体的词")
             else:
-                for a in matched[:30]:
-                    _render_sentiment_card(a, enable_translate, color)
+                # AI 过滤按钮
+                if use_ai_filter and sent_api_key:
+                    ai_btn_key = f"ai_filter_btn_{theme_name}"
+                    if st.button(f"🤖 AI 精准筛选（当前 {len(matched)} 条）", key=ai_btn_key):
+                        with st.spinner("AI 分析中..."):
+                            filtered = ai_classify_sentiment(list(matched), theme_name, sent_api_key, sent_ai_provider)
+                            st.session_state[f"ai_filtered_{theme_name}"] = filtered
 
-def _render_sentiment_card(a: Dict, enable_translate: bool, color: str):
+                display = st.session_state.get(f"ai_filtered_{theme_name}", matched)
+                if use_ai_filter and sent_api_key and f"ai_filtered_{theme_name}" in st.session_state:
+                    ai_ok = [a for a in display if a.get("_ai_relevant", True)]
+                    ai_no = [a for a in display if not a.get("_ai_relevant", True)]
+                    st.caption(f"✅ AI 确认相关：{len(ai_ok)} 条 | ❌ 过滤误匹配：{len(ai_no)} 条")
+                    for a in ai_ok[:30]:
+                        _render_sentiment_card(a, enable_translate, color, show_ai_reason=True)
+                    if ai_no:
+                        with st.expander(f"查看被过滤的 {len(ai_no)} 条"):
+                            for a in ai_no[:10]:
+                                _render_sentiment_card(a, enable_translate, "#d1d5db", show_ai_reason=True)
+                else:
+                    for a in matched[:30]:
+                        _render_sentiment_card(a, enable_translate, color)
+
+
+def _render_sentiment_card(a: Dict, enable_translate: bool, color: str, show_ai_reason: bool = False):
     """渲染单条舆情卡片"""
     from html import escape
     title = translate_safe(a.get("title", ""), enable_translate)
     summary = translate_safe(a.get("raw_summary", ""), enable_translate)
     dt_str = (a.get("dt", "") or "")[:10]
-    source = a.get("source", "")
+    source_e = escape(a.get("source", ""))
     link = a.get("link", "#").replace('"', "%22")
-
     title_e = escape(title)
     summary_e = escape(summary) if summary else ""
-    source_e = escape(source)
-    summary_html = f'<div style="font-size:13px;color:#6b7280;margin:6px 0;line-height:1.6">{summary_e}</div>' if summary_e else ""
+    conf = a.get("_confidence", 0)
+    ai_reason = a.get("_ai_reason", "")
+
+    conf_badge = (
+        '<span style="background:#dcfce7;color:#166534;font-size:10px;padding:2px 6px;'
+        'border-radius:4px;margin-left:6px">高置信</span>'
+        if conf == 2 else ""
+    )
+    summary_html = (
+        f'<div style="font-size:13px;color:#6b7280;margin:6px 0;line-height:1.6">{summary_e}</div>'
+        if summary_e else ""
+    )
+    ai_html = (
+        f'<div style="font-size:11px;color:#7c3aed;margin-top:4px">🤖 {escape(ai_reason)}</div>'
+        if show_ai_reason and ai_reason else ""
+    )
 
     st.markdown(
-        f'''<div style="background:white;border-radius:10px;padding:16px;margin-bottom:10px;
-        border-left:4px solid {color};box-shadow:0 1px 6px rgba(0,0,0,0.08)">
-        <div style="font-size:15px;font-weight:600;margin-bottom:6px">
-            <a href="{link}" target="_blank" style="text-decoration:none;color:#1f2937">{title_e}</a>
-        </div>
-        {summary_html}
-        <div style="display:flex;justify-content:space-between;font-size:12px;color:#9ca3af;
-        border-top:1px solid #f3f4f6;padding-top:8px;margin-top:8px">
-            <span>📍 {source_e}</span><span>🕒 {dt_str}</span>
-        </div></div>''',
+        f'<div style="background:white;border-radius:10px;padding:16px;margin-bottom:10px;'
+        f'border-left:4px solid {color};box-shadow:0 1px 6px rgba(0,0,0,0.08)">'
+        f'<div style="font-size:15px;font-weight:600;margin-bottom:6px">'
+        f'<a href="{link}" target="_blank" style="text-decoration:none;color:#1f2937">{title_e}</a>'
+        f'{conf_badge}</div>'
+        f'{summary_html}{ai_html}'
+        f'<div style="display:flex;justify-content:space-between;font-size:12px;color:#9ca3af;'
+        f'border-top:1px solid #f3f4f6;padding-top:8px;margin-top:8px">'
+        f'<span>📍 {source_e}</span><span>🕒 {dt_str}</span>'
+        f'</div></div>',
         unsafe_allow_html=True
     )
 
