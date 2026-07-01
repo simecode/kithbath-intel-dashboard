@@ -1330,7 +1330,7 @@ def main():
         st.markdown(
             '<div class="author-card">'
             '<b>Author</b> · szeyeung<br>'
-            '<b>交流</b> · <a href="mailto:adala7@sina.com">adala7@sina.com</a>'
+            '<b>Contact</b> · <a href="mailto:adala7@sina.com">adala7@sina.com</a>'
             '</div>',
             unsafe_allow_html=True
         )
