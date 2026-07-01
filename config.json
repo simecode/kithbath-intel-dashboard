@@ -1,160 +1,431 @@
 {
   "keywords": [
-    "Sanitaryware", "Bathware", "faucet", "plumbing", "ceramic sanitary",
-    "Sanitärkeramik", "Badezimmer", "céramique sanitaire", "robinetterie",
-    "bathroom renovation", "kitchen cabinet", "modular bathroom", "prefabricated bathroom"
+    "Sanitaryware",
+    "Bathware",
+    "faucet",
+    "plumbing",
+    "ceramic sanitary",
+    "Sanitärkeramik",
+    "Badezimmer",
+    "céramique sanitaire",
+    "robinetterie",
+    "bathroom renovation",
+    "kitchen cabinet",
+    "modular bathroom",
+    "prefabricated bathroom"
   ],
-
   "companies": [
-    "Roca", "Geberit", "Villeroy & Boch", "Villeroy&Boch", "Saint-Gobain", "CRH",
-    "TOTO", "LIXIL", "Panasonic", "Kohler", "Masco", "Fortune Brands", "Jomoo",
-    "Arrow", "HeGII", "VitrA", "Eczacibasi", "Mohawk", "Porcelanosa", "Wienerberger",
-    "Ferguson", "Duravit", "Grohe", "Moen", "IFG", "Kingfisher", "Home Depot",
-    "Lowes", "GWA", "RAK Ceramics", "KLUDI", "Viega", "Dornbracht",
-    "Hansgrohe", "Ideal Standard", "Laufen", "Hindware", "Cersanit"
+    "Roca",
+    "Geberit",
+    "Villeroy & Boch",
+    "Villeroy&Boch",
+    "Saint-Gobain",
+    "CRH",
+    "TOTO",
+    "LIXIL",
+    "Panasonic",
+    "Kohler",
+    "Masco",
+    "Fortune Brands",
+    "Jomoo",
+    "Arrow",
+    "HeGII",
+    "VitrA",
+    "Eczacibasi",
+    "Mohawk",
+    "Porcelanosa",
+    "Wienerberger",
+    "Ferguson",
+    "Duravit",
+    "Grohe",
+    "Moen",
+    "IFG",
+    "Kingfisher",
+    "Home Depot",
+    "Lowes",
+    "GWA",
+    "RAK Ceramics",
+    "KLUDI",
+    "Viega",
+    "Dornbracht",
+    "Hansgrohe",
+    "Ideal Standard",
+    "Laufen",
+    "Hindware",
+    "Cersanit"
   ],
-
   "sentiment_themes": {
     "高管人事变动": {
       "color": "#ef4444",
       "icon": "👔",
       "strong": [
-        "resign", "resigns", "steps down", "step down", "to retire", "retires",
-        "leadership change", "appointed as", "named as", "succeeds", "successor to",
-        "ousted", "fired", "stepping down", "takes over as", "promoted to",
-        "离职", "辞职", "卸任", "退休", "任命为", "接替", "升任为",
-        "neu besetzt", "ernennung", "nachfolge", "geht in den ruhestand",
-        "nomination", "nommé", "nommée", "nombrado", "nuovo amministratore delegato"
+        "resign",
+        "resigns",
+        "steps down",
+        "step down",
+        "to retire",
+        "retires",
+        "leadership change",
+        "appointed as",
+        "named as",
+        "succeeds",
+        "successor to",
+        "ousted",
+        "fired",
+        "stepping down",
+        "takes over as",
+        "promoted to",
+        "离职",
+        "辞职",
+        "卸任",
+        "退休",
+        "任命为",
+        "接替",
+        "升任为",
+        "neu besetzt",
+        "ernennung",
+        "nachfolge",
+        "geht in den ruhestand",
+        "nomination",
+        "nommé",
+        "nommée",
+        "nombrado",
+        "nuovo amministratore delegato"
       ],
       "weak": [
-        "appoint", "appointed", "named", "board member", "new ceo", "new president",
-        "joins", "joins as", "hired", "wechsel", "ernennt", "verstärkt", "rejoint",
-        "接任", "就任", "出任", "新任", "上任", "履新", "加入", "任命", "管理人员"
+        "appoint",
+        "appointed",
+        "named",
+        "board member",
+        "new ceo",
+        "new president",
+        "joins",
+        "joins as",
+        "hired",
+        "wechsel",
+        "ernennt",
+        "verstärkt",
+        "rejoint",
+        "接任",
+        "就任",
+        "出任",
+        "新任",
+        "上任",
+        "履新",
+        "加入",
+        "任命",
+        "管理人员"
       ],
       "boost": [
-        "CEO", "CFO", "CTO", "COO", "president", "chairman", "chief", "executive",
-        "VP", "director", "head of", "managing director", "country manager", "ressort",
-        "geschäftsführer", "vorstand", "leiter", "leitung", "directeur",
-        "总裁", "董事长", "总经理", "首席", "主席", "负责人", "高管", "总监", "管理人员"
+        "CEO",
+        "CFO",
+        "CTO",
+        "COO",
+        "president",
+        "chairman",
+        "chief",
+        "executive",
+        "VP",
+        "director",
+        "head of",
+        "managing director",
+        "country manager",
+        "ressort",
+        "geschäftsführer",
+        "vorstand",
+        "leiter",
+        "leitung",
+        "directeur",
+        "总裁",
+        "董事长",
+        "总经理",
+        "首席",
+        "主席",
+        "负责人",
+        "高管",
+        "总监",
+        "管理人员"
       ],
       "exclude": [
-        "award", "conference", "exhibition", "fair", "webinar", "product launch",
-        "collection", "store opening", "new store"
+        "award",
+        "conference",
+        "exhibition",
+        "fair",
+        "webinar",
+        "product launch",
+        "collection",
+        "store opening",
+        "new store"
       ]
     },
-
     "并购与战略合作": {
       "color": "#f59e0b",
       "icon": "🤝",
       "strong": [
-        "acquire", "acquires", "acquired", "acquisition", "merger", "merges",
-        "takeover", "divest", "divestiture", "divests", "spin-off", "spinoff",
-        "acquire stake", "joint venture", "to acquire", "buys stake",
-        "收购", "并购", "合并", "入股", "控股", "股权转让", "联合成立",
-        "übernimmt", "übernahme", "rachat", "acquisition de"
+        "acquire",
+        "acquires",
+        "acquired",
+        "acquisition",
+        "merger",
+        "merges",
+        "takeover",
+        "divest",
+        "divestiture",
+        "divests",
+        "spin-off",
+        "spinoff",
+        "acquire stake",
+        "joint venture",
+        "to acquire",
+        "buys stake",
+        "收购",
+        "并购",
+        "合并",
+        "入股",
+        "控股",
+        "股权转让",
+        "联合成立",
+        "übernimmt",
+        "übernahme",
+        "rachat",
+        "acquisition de"
       ],
       "weak": [
-        "buys", "purchased", "stake in", "invest in", "investment in",
-        "partners with", "strategic partnership", "战略合作", "合作", "投资", "携手", "联手"
+        "buys",
+        "purchased",
+        "stake in",
+        "invest in",
+        "investment in",
+        "partners with",
+        "strategic partnership",
+        "战略合作",
+        "合作",
+        "投资",
+        "携手",
+        "联手"
       ],
       "boost": [
-        "billion", "million", "deal", "agreement", "stake", "equity",
-        "亿", "万", "股权", "交易"
+        "billion",
+        "million",
+        "deal",
+        "agreement",
+        "stake",
+        "equity",
+        "亿",
+        "万",
+        "股权",
+        "交易"
       ],
-      "exclude": ["award", "conference", "exhibition"]
+      "exclude": [
+        "award",
+        "conference",
+        "exhibition"
+      ]
     },
-
     "财务与市场变化": {
       "color": "#6366f1",
       "icon": "📈",
       "strong": [
-        "earnings", "net profit", "ebitda", "quarterly results", "annual report",
-        "half-year results", "profit warning", "revenue decline", "sales drop",
-        "record revenue", "bankruptcy", "insolvency", "profit margin",
-        "裁员", "亏损", "破产", "季报", "年报", "营收下滑", "盈利增长", "业绩预警",
-        "geschäftszahlen", "umsatz", "jahresbericht", "résultats annuels"
+        "earnings",
+        "net profit",
+        "ebitda",
+        "quarterly results",
+        "annual report",
+        "half-year results",
+        "profit warning",
+        "revenue decline",
+        "sales drop",
+        "record revenue",
+        "bankruptcy",
+        "insolvency",
+        "profit margin",
+        "裁员",
+        "亏损",
+        "破产",
+        "季报",
+        "年报",
+        "营收下滑",
+        "盈利增长",
+        "业绩预警",
+        "geschäftszahlen",
+        "umsatz",
+        "jahresbericht",
+        "résultats annuels"
       ],
       "weak": [
-        "revenue", "sales", "turnover", "guidance", "forecast", "results",
-        "market share", "营收", "销售额", "业绩", "市场份额"
+        "revenue",
+        "sales",
+        "turnover",
+        "guidance",
+        "forecast",
+        "results",
+        "market share",
+        "营收",
+        "销售额",
+        "业绩",
+        "市场份额"
       ],
       "boost": [
-        "billion", "million", "percent", "%", "growth", "decline", "year-on-year",
-        "亿", "万", "增长", "下滑", "百分"
+        "billion",
+        "million",
+        "percent",
+        "%",
+        "growth",
+        "decline",
+        "year-on-year",
+        "亿",
+        "万",
+        "增长",
+        "下滑",
+        "百分"
       ],
-      "exclude": ["award", "exhibition", "conference"]
+      "exclude": [
+        "award",
+        "exhibition",
+        "conference"
+      ]
     },
-
     "运营变动": {
       "color": "#0ea5e9",
       "icon": "🏭",
       "strong": [
-        "plant closure", "factory closure", "plant closing", "new factory",
-        "new plant", "capacity expansion", "shutdown", "plant shutdown",
-        "production halt", "production stop", "layoffs", "job cuts", "restructuring",
-        "工厂关闭", "新建工厂", "产能扩张", "停产", "关停", "裁员", "重组",
-        "werksschließung", "neues werk", "produktionsstandort", "fermeture d'usine", "nouvelle usine"
+        "plant closure",
+        "factory closure",
+        "plant closing",
+        "new factory",
+        "new plant",
+        "capacity expansion",
+        "shutdown",
+        "plant shutdown",
+        "production halt",
+        "production stop",
+        "layoffs",
+        "job cuts",
+        "restructuring",
+        "工厂关闭",
+        "新建工厂",
+        "产能扩张",
+        "停产",
+        "关停",
+        "裁员",
+        "重组",
+        "werksschließung",
+        "neues werk",
+        "produktionsstandort",
+        "fermeture d'usine",
+        "nouvelle usine"
       ],
       "weak": [
-        "investment", "production line", "capacity", "expansion", "capex",
-        "relocation", "new site", "投资", "产线", "产能", "扩建", "搬迁", "生产基地"
+        "investment",
+        "production line",
+        "capacity",
+        "expansion",
+        "capex",
+        "relocation",
+        "new site",
+        "投资",
+        "产线",
+        "产能",
+        "扩建",
+        "搬迁",
+        "生产基地"
       ],
       "boost": [
-        "million", "billion", "plant", "factory", "facility", "production", "jobs",
-        "工厂", "产能", "生产线", "亿", "万", "员工"
+        "million",
+        "billion",
+        "plant",
+        "factory",
+        "facility",
+        "production",
+        "jobs",
+        "工厂",
+        "产能",
+        "生产线",
+        "亿",
+        "万",
+        "员工"
       ],
-      "exclude": ["award", "exhibition"]
+      "exclude": [
+        "award",
+        "exhibition"
+      ]
     },
-
     "战略举措": {
       "color": "#10b981",
       "icon": "🌱",
       "strong": [
-        "carbon neutral", "net zero", "decarbonization", "decarbonisation",
-        "sustainability strategy", "digital transformation", "green building",
-        "esg strategy", "climate target", "circular economy",
-        "碳中和", "零碳", "可持续发展战略", "数字化转型", "绿色建筑", "循环经济",
-        "klimaneutral", "nachhaltigkeitsstrategie", "stratégie de durabilité"
+        "carbon neutral",
+        "net zero",
+        "decarbonization",
+        "decarbonisation",
+        "sustainability strategy",
+        "digital transformation",
+        "green building",
+        "esg strategy",
+        "climate target",
+        "circular economy",
+        "碳中和",
+        "零碳",
+        "可持续发展战略",
+        "数字化转型",
+        "绿色建筑",
+        "循环经济",
+        "klimaneutral",
+        "nachhaltigkeitsstrategie",
+        "stratégie de durabilité"
       ],
       "weak": [
-        "esg", "sustainability", "sustainable", "green", "innovation", "digital",
-        "strategy", "roadmap", "可持续", "绿色", "创新", "数字化", "战略", "路线图"
+        "esg",
+        "sustainability",
+        "sustainable",
+        "green",
+        "innovation",
+        "digital",
+        "strategy",
+        "roadmap",
+        "可持续",
+        "绿色",
+        "创新",
+        "数字化",
+        "战略",
+        "路线图"
       ],
       "boost": [
-        "strategy", "initiative", "target", "goal", "investment", "roadmap", "plan",
-        "战略", "目标", "计划", "投资", "举措"
+        "strategy",
+        "initiative",
+        "target",
+        "goal",
+        "investment",
+        "roadmap",
+        "plan",
+        "战略",
+        "目标",
+        "计划",
+        "投资",
+        "举措"
       ],
-      "exclude": ["award show"]
+      "exclude": [
+        "award show"
+      ]
     }
   },
-
   "media_rss": {
     "KBB Review": "https://www.kbbreview.com/feed/",
     "House News JP": "https://www.housenews.jp/rss",
     "Woodworking Network": "https://www.woodworkingnetwork.com/rss.xml",
-    "Supply HT": "https://www.supplyht.com/rss/topic/2729",
-    "Ceramic World Web": "https://ceramicworldweb.com/index.php/en/feed"
+    "Dezeen Bathrooms": "https://www.dezeen.com/tag/bathrooms/feed/",
+    "Dezeen Kitchens": "https://www.dezeen.com/tag/kitchens/feed/",
+    "TileLetter": "https://www.tileletter.com/feed/",
+    "Moebelkultur": "https://www.moebelkultur.de/feed/",
+    "md-mag": "https://www.md-mag.com/feed/",
+    "Floor Daily": "https://www.floordaily.net/rss"
   },
-
   "media_scrape": {
     "Reform Online JP": [
       "https://www.reform-online.jp/",
       "h2 a, h3 a, .entry-title a, .article-title a",
       "https://www.reform-online.jp/news/manufacturer/"
     ],
-    "Kitchen Bath Design": [
-      "https://www.kitchenbathdesign.com/",
-      "h2 a, h3 a, .article-title a",
-      "https://www.kitchenbathdesign.com/news/"
-    ],
-    "SanitaerNews": {
-      "url": "https://www.sanitaernews.de/",
-      "news_url": "https://www.sanitaernews.de/news/",
-      "item": "article, .article-item, .news-item",
-      "title": "h2 a, h3 a, .article-title a",
-      "summary": "p, .excerpt, .teaser",
-      "date": "time, .date"
-    },
     "SDBPRO": [
       "https://www.sdbpro.fr/",
       "h2 a, h3 a, .entry-title a",
@@ -165,109 +436,18 @@
       "a[href*=beitrag]",
       "https://www.moebelmarkt.de/news"
     ],
-    "Alimarket": {
-      "url": "https://www.alimarket.es/",
-      "news_url": "https://www.alimarket.es/construccion/noticias",
-      "item": ".noticia, article, .news-item",
-      "title": "h2 a, h3 a, .title a",
-      "summary": "p, .excerpt",
-      "date": "time, .fecha, .date"
-    },
-    "El Periodico del Azulejo": [
-      "https://www.elperiodicodelazulejo.es/",
-      "h2 a, h3 a, .entry-title a, article a",
-      "https://www.elperiodicodelazulejo.es/industria"
-    ],
-    "Woodworking News": [
-      "https://www.woodworkingnetwork.com/",
-      "h2 a, h3 a, .article-title a",
-      "https://www.woodworkingnetwork.com/news"
-    ],
     "Building Times AT": [
       "https://buildingtimes.at/",
       "h2 a, h3 a, .entry-title a, article a",
       "https://buildingtimes.at/de/nachrichten/markt-macher"
-    ],
-    "Ceramic World Economics": [
-      "https://ceramicworldweb.com/",
-      "h2 a, h3 a, .entry-title a",
-      "https://ceramicworldweb.com/en/economics-and-markets"
-    ],
-    "Industry ID": [
-      "https://www.industry.co.id/",
-      "h4 a, h3 a",
-      "https://www.industry.co.id/industri/keramik"
-    ],
-    "DIY International": [
-      "https://www.diyinternational.com/",
-      "h2 a, h3 a, .entry-title a",
-      "https://www.diyinternational.com/news/"
     ]
   },
-
-  "assoc_rss": {
-    "Cerameunie": "https://cerameunie.eu/rss",
-    "Abceram BR": "https://abceram.org.br/feed"
-  },
-
+  "assoc_rss": {},
   "assoc_scrape": {
-    "CCST Turkey": {
-      "url": "https://ccst.org.tr/",
-      "news_url": "https://ccst.org.tr/haberler",
-      "item": ".news-item, article, .haber-item",
-      "title": "h2 a, h3 a, a.title",
-      "summary": "p, .excerpt",
-      "date": "time, .date, .tarih"
-    },
-    "VN Ceramic": {
-      "url": "https://vnceramic.org.vn/",
-      "news_url": "https://vnceramic.org.vn/tin-tuc",
-      "item": "article, .post-item, li.item",
-      "title": "h2 a, h3 a, .title a",
-      "summary": "p, .excerpt",
-      "date": "time, .date"
-    },
-    "VDMA Armaturen": [
-      "https://www.vdma.eu/",
-      "h2 a, h3 a, .teaser a, article a",
-      "https://www.vdma.eu/de/armaturen"
-    ],
     "Sanitaerwirtschaft": {
       "url": "https://www.sanitaerwirtschaft.de/",
       "news_url": "https://www.sanitaerwirtschaft.de/aktuell",
       "item": "article, .news-item, .article",
-      "title": "h2 a, h3 a",
-      "summary": "p",
-      "date": "time, .date"
-    },
-    "CAB Badania PL": {
-      "url": "https://cab-badania.pl/",
-      "news_url": "https://cab-badania.pl/en/news/",
-      "item": "article, .post, .news-entry",
-      "title": "h2 a, h3 a",
-      "summary": "p",
-      "date": "time, .date"
-    },
-    "Apicer PT": {
-      "url": "https://www.apicer.pt/",
-      "news_url": "https://www.apicer.pt/apicer/pt/noticias",
-      "item": "article, .news-item, li.noticia",
-      "title": "h2 a, h3 a, .title a",
-      "summary": "p",
-      "date": "time, .date"
-    },
-    "REIC Thailand": {
-      "url": "https://www.reic.or.th/",
-      "news_url": "https://www.reic.or.th/news",
-      "item": "article, .news-item, .entry",
-      "title": "h2 a, h3 a",
-      "summary": "p, .excerpt",
-      "date": "time, .date"
-    },
-    "Acimac IT": {
-      "url": "https://www.acimac.it/",
-      "news_url": "https://www.acimac.it/news-di-settore/",
-      "item": "article, .news-item",
       "title": "h2 a, h3 a",
       "summary": "p",
       "date": "time, .date"
