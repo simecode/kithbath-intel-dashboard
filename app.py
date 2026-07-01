@@ -106,8 +106,7 @@ html { scroll-behavior: smooth; }
 
 /* ---- 作者/交流卡 ---- */
 .author-card {
-    background: #ffffff; border: 0.5px solid var(--hair); border-radius: 10px;
-    padding: 12px 14px; font-size: 12.5px; color: #55503f; line-height: 1.7;
+    padding: 4px 2px; font-size: 12.5px; color: #55503f; line-height: 1.7;
 }
 .author-card b { color: var(--ink); font-weight: 600; }
 .author-card a { color: var(--accent); text-decoration: none; }
