@@ -1,4 +1,4 @@
-# 🛰 KitchBath Intel — 行业情报系统 v3.5
+# 🛰 KitchBath Intel — 行业情报系统 v3.6
 
 > 全球卫浴、厨房、建材行业实时信息聚合与 AI 分析平台
 
@@ -11,11 +11,11 @@
 
 | 模块 | 说明 |
 |------|------|
-| 📰 行业媒体 | 聚合全球 10+ 专业媒体 RSS 与网页，自动翻译、分页浏览 |
+| 📰 行业媒体 | 聚合全球 10+ 专业媒体 RSS 与网页，过滤营销内容、提取真实发布日期、自动翻译、分页浏览 |
 | 🏛 行业协会 | 抓取欧美亚各地行业协会新闻发布页，直达一手政策动态 |
-| 🔍 情报发现 | 基于关键词的全网实时搜索，覆盖 DuckDuckGo 等引擎 |
-| 📡 舆情监督 | 按主题（人事/并购/新品/财务）自动分类，支持自定义关键词追踪 |
-| 🤖 AI 分析报告 | 接入主流大模型（含免费方案），生成结构化行业洞察报告 |
+| 🔍 情报发现 | 33 家重点企业 + 行业关键词全网定向搜索（必应，国内可直接访问） |
+| 📡 舆情监督 | 按 5 类主题（人事/并购/财务/运营/战略）分层精准匹配，重点企业自动加分，支持自定义关键词与 AI 二次筛选 |
+| 🤖 AI 分析报告 | 接入主流大模型（含 OpenRouter / Cloudflare 免费方案），生成结构化行业洞察报告 |
 
 ---
 
@@ -50,30 +50,39 @@ streamlit run app.py
 ### 📰 行业媒体 / 🏛 行业协会
 
 - **自动抓取**：启动后后台静默更新，每 30 分钟刷新一次（可手动强制刷新）
+- **营销内容过滤**：自动剔除营销/传播/广告类页面，只保留新闻资讯
+- **真实发布日期**：网页抓取时从 `<time>` 标签提取真实发布时间（支持德式/欧式 `DD.MM.YYYY`、ISO 等格式），缓解时间滞后/失真
 - **时间过滤**：支持按 7天 / 30天 / 3个月 / 一年 / 全部 筛选
-- **自动翻译**：开启后将非中文标题/摘要自动译为中文（使用 Google Translate，无需 Key）
+- **自动翻译**：开启后将非中文标题/摘要自动译为中文（Google Translate，无需 Key）；内置**内存+磁盘缓存 + 并发预热**，翻过的内容秒显
 - **排序方式**：时间最新 / 重要性最高 / 综合推荐
 - **分页浏览**：每页 20 条，支持上一页/下一页翻页
 
 
 ### 🔍 情报发现
 
-点击「启动全网情报发现」后，系统自动以 `config.json` 中的 `keywords` 关键词组合搜索全网最新资讯，结合行业语境过滤无关内容后聚合显示。
+点击「启动全网情报发现」后，系统以 `config.json` 中的 **`companies`（33 家重点企业）+ `keywords`（行业关键词）** 组合，通过**必应（cn.bing.com，国内可直接访问）** 搜索全网最新资讯，结合行业语境过滤无关内容后聚合显示。
 
 ### 📡 舆情监督
 
-**四大预设主题：**
+**5 类预设主题**（对齐行业事件类型）：
 
-- 👔 **高管人事变动** — 追踪 resign、appoint、CEO、离职、任命等信号词
-- 🤝 **并购与战略合作** — 追踪 acquire、merger、收购、合并等关键词
-- 🚀 **新品与技术发布** — 追踪 launch、new product、发布、创新等词
-- 📈 **财务与市场变化** — 追踪 revenue、layoff、裁员、重组等词
+- 👔 **高管人事变动** — 离职/辞职/任命/resign/appoint/CEO 等，含德法西意多语种词
+- 🤝 **并购与战略合作** — 收购/并购/acquire/merger/joint venture 等
+- 📈 **财务与市场变化** — 营收/裁员/earnings/EBITDA/季报年报 等
+- 🏭 **运营变动** — 工厂关闭/新建/产能/停产/plant closure 等
+- 🌱 **战略举措** — ESG/碳中和/数字化转型/可持续 等
+
+**匹配逻辑（分层，兼顾精度与召回）：**
+- **强词**（含义明确）单独命中即判定为高置信；
+- **弱词**（较泛化）需有职位/金额/**重点企业名**等加分词佐证才算，避免误判；
+- 命中 33 家**重点企业**的条目自动加分、优先展示。
 
 **使用方法：**
 1. 选择统计时间段（近7天 / 1个月 / 3个月 / 6个月）
 2. 顶部数字卡片一目了然地展示各主题命中数量
 3. 展开对应主题查看具体文章列表
-4. 可在「自定义监督关键词」输入框中输入自己关注的词（如 `Kohler CEO, Hansgrohe resign`），进行专项追踪
+4. 可在「自定义关键词追踪」输入框中输入自己关注的词（如 `Kohler CEO, Hansgrohe resign`）进行专项追踪
+5. （可选）勾选「启用 AI 精准筛选」，用大模型二次过滤误匹配
 
 ### 🤖 AI 分析报告
 
@@ -82,6 +91,7 @@ streamlit run app.py
 | 提供商 | 费用 | 获取 Key |
 |--------|------|---------|
 | 🆓 OpenRouter 免费模型 | 每日免费额度 | [openrouter.ai](https://openrouter.ai) 注册即可 |
+| 🆓 Cloudflare Workers AI | 免费额度 | [dash.cloudflare.com](https://dash.cloudflare.com) → Workers AI；Key 格式为 `账户ID:API令牌` |
 | DeepSeek | 极低价格 | [platform.deepseek.com](https://platform.deepseek.com) |
 | OpenAI GPT-4o mini | 按量计费 | [platform.openai.com](https://platform.openai.com) |
 | Anthropic Claude | 按量计费 | [console.anthropic.com](https://console.anthropic.com) |
@@ -106,7 +116,19 @@ streamlit run app.py
 
 ```jsonc
 {
-  "keywords": ["Kohler", "Hansgrohe", ...],   // 情报发现关键词
+  "keywords": ["faucet", "plumbing", ...],       // 情报发现的行业关键词
+  "companies": ["Kohler", "Geberit", ...],       // 33 家重点企业（驱动情报发现 + 舆情加分）
+
+  "sentiment_themes": {                          // 舆情 5 类主题词库（可直接改，无需动代码）
+    "高管人事变动": {
+      "color": "#ef4444", "icon": "👔",
+      "strong": ["resign", "离职", ...],          // 强词：单独命中即判定
+      "weak":   ["appoint", "新任", ...],         // 弱词：需 boost 佐证
+      "boost":  ["CEO", "总裁", ...],             // 职位/金额等加分词
+      "exclude":["award", "exhibition", ...]      // 排除词
+    }
+    // ... 并购/财务/运营/战略 同理
+  },
 
   "media_rss": {
     "来源名称": "https://example.com/feed.xml"  // RSS 格式
@@ -156,11 +178,13 @@ kithbath-intel-dashboard/
 ├── README.md               # 本文档
 ├── .streamlit/
 │   └── config.toml         # Streamlit 主题配置
-└── .intel_store/           # 运行时自动创建
-    ├── media.json          # 媒体文章缓存
-    ├── assoc.json          # 协会文章缓存
-    ├── discovery.json      # 情报发现缓存
-    └── update_state.json   # 更新时间记录
+├── .intel_store/           # 运行时自动创建
+│   ├── media.json          # 媒体文章缓存
+│   ├── assoc.json          # 协会文章缓存
+│   ├── discovery.json      # 情报发现缓存
+│   └── update_state.json   # 更新时间记录
+└── .intel_cache/           # 运行时自动创建
+    └── translations.json   # 翻译缓存（内存+磁盘，加速重复渲染）
 ```
 
 ---
@@ -188,6 +212,7 @@ kithbath-intel-dashboard/
 
 | 版本 | 更新内容 |
 |------|---------|
+| v3.6 | 舆情重构为 5 类主题（人事/并购/财务/运营/战略）+ 强弱词分层匹配 + 多语种关键词；33 家重点企业驱动情报发现并在舆情中加分；行业媒体过滤营销内容、提取真实发布日期；情报发现改用国内可访问的必应；新增 Cloudflare 免费模型；翻译加入缓存 + 并发预热大幅提速 |
 | v3.5 | 新增舆情监督模块；修复 AI 分析将媒体名当企业的问题；分析时间段可选（3/6/9/12个月）；HTML 渲染 bug 修复 |
 | v3.0 | 新增 AI 分析报告；支持 OpenRouter 免费模型；分页功能 |
 | v2.5 | 新增情报发现 Tab；多源搜索引擎整合 |
