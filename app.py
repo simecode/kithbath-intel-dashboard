@@ -272,15 +272,25 @@ def is_marketing_content(title: str, href: str) -> bool:
     blob = f"{title} {href}".lower()
     return any(p in blob for p in MARKETING_EXCLUDE_PATTERNS)
 
+_DATE_YMD_RE = _date_re.compile(r"(20\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})")        # 2026-06-26 / 2026/07/01
 _DATE_DMY_RE = _date_re.compile(r"\b(\d{1,2})[.\-/](\d{1,2})[.\-/](20\d{2})\b")   # 26.06.2026 / 26-06-2026
-_DATE_YMD_RE = _date_re.compile(r"\b(20\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})\b")   # 2026-06-26
+_DATE_CJK_RE = _date_re.compile(r"(20\d{2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日")  # 2026年7月1日
+
+def _mk_date(year, month, day) -> Optional[str]:
+    try:
+        if 2000 <= year <= datetime.now(timezone.utc).year + 1 and 1 <= month <= 12 and 1 <= day <= 31:
+            return datetime(year, month, day, tzinfo=timezone.utc).isoformat()
+    except Exception:
+        pass
+    return None
 
 def parse_date_string(raw: str) -> Optional[str]:
-    """解析多种常见日期格式，返回 UTC ISO 字符串。支持 ISO、德式/欧式 DD.MM.YYYY、YYYY-MM-DD。"""
+    """从一段文本中解析日期，返回 UTC ISO 字符串。
+    支持 ISO、YYYY-MM-DD / YYYY/MM/DD、德式/欧式 DD.MM.YYYY、日式 2026年7月1日。"""
     if not raw:
         return None
     raw = raw.strip()
-    # 先试 ISO（含 datetime 属性）
+    # 先试 ISO（多用于 <time datetime="..."> 属性）
     try:
         d = datetime.fromisoformat(raw.replace("Z", "+00:00")[:25])
         if d.tzinfo is None:
@@ -288,50 +298,70 @@ def parse_date_string(raw: str) -> Optional[str]:
         return d.astimezone(timezone.utc).isoformat()
     except Exception:
         pass
-    m = _DATE_DMY_RE.search(raw)
-    if m:
-        day, month, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        try:
-            return datetime(year, month, day, tzinfo=timezone.utc).isoformat()
-        except Exception:
-            pass
     m = _DATE_YMD_RE.search(raw)
     if m:
-        year, month, day = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        try:
-            return datetime(year, month, day, tzinfo=timezone.utc).isoformat()
-        except Exception:
-            pass
+        r = _mk_date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        if r:
+            return r
+    m = _DATE_CJK_RE.search(raw)
+    if m:
+        r = _mk_date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        if r:
+            return r
+    m = _DATE_DMY_RE.search(raw)
+    if m:
+        r = _mk_date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        if r:
+            return r
     return None
 
-def extract_item_date(item, date_sel: Optional[str] = None) -> Optional[str]:
-    """尝试从网页条目中提取真实发布时间，而不是统一标记为抓取时刻，
-    避免网页抓取来源在排序/统计时出现“时间滞后/失真”的问题。
-    会向上回溯几层父容器查找 <time> 标签或日期文本。"""
-    # 从 item 自身开始，逐级向父容器扩大搜索范围
-    search_roots = [item]
+_ITEM_TAGS = ("li", "article")
+_ITEM_CLASS_HINTS = ("item", "post", "article", "news", "entry", "noticia", "card", "story")
+
+def _is_item_container(node) -> bool:
+    name = getattr(node, "name", "") or ""
+    classes = " ".join(node.get("class", [])).lower() if hasattr(node, "get") else ""
+    return name in _ITEM_TAGS or any(h in classes for h in _ITEM_CLASS_HINTS)
+
+def _nearest_item_scope(item):
+    """找到"单条文章"的容器（li/article 或带 item/post/news 类名的块），
+    避免把包含全部文章的列表容器（ul）当作日期范围——否则会把最新一条的日期套给所有条目。
+    先看 item 自身（字典格式传入的就是容器），再逐级向上找。"""
+    if _is_item_container(item):
+        return item
     node = item
-    for _ in range(4):
+    for _ in range(6):
         node = getattr(node, "parent", None)
         if node is None:
             break
-        search_roots.append(node)
+        if _is_item_container(node):
+            return node
+    # 找不到语义容器时，退回 item 的直接父级（仍比爬到列表级安全）
+    return getattr(item, "parent", None) or item
 
-    for root in search_roots:
-        candidates = []
-        if date_sel:
-            candidates.append(root.select_one(date_sel))
-        candidates.append(root.select_one("time[datetime]"))
-        candidates.append(root.select_one("time"))
-        candidates.append(root.select_one(".date, .post-date, .entry-date, .meta-date"))
-        for el in candidates:
-            if not el:
-                continue
-            raw = el.get("datetime") or el.get_text(" ", strip=True)
-            parsed = parse_date_string(raw)
-            if parsed:
-                return parsed
-    return None
+def extract_item_date(item, date_sel: Optional[str] = None) -> Optional[str]:
+    """在"单条文章容器"范围内提取真实发布时间，返回 UTC ISO。
+    顺序：指定选择器 → <time> → 常见日期类 → 容器纯文本正则兜底。"""
+    scope = _nearest_item_scope(item)
+    if scope is None:
+        return None
+
+    candidates = []
+    if date_sel:
+        candidates.append(scope.select_one(date_sel))
+    candidates.append(scope.select_one("time[datetime]"))
+    candidates.append(scope.select_one("time"))
+    candidates.append(scope.select_one(".date, .post-date, .entry-date, .meta-date, .fecha, .datetime"))
+    for el in candidates:
+        if not el:
+            continue
+        raw = el.get("datetime") or el.get_text(" ", strip=True)
+        parsed = parse_date_string(raw)
+        if parsed:
+            return parsed
+
+    # 纯文本兜底：仅在本条目容器文本中找日期（日式/YMD/欧式）
+    return parse_date_string(scope.get_text(" ", strip=True))
 
 def scrape_site(name: str, config_data) -> List[Dict]:
     """
