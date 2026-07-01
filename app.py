@@ -142,11 +142,31 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.5",
 }
 
+import re as _date_re
+_YEAR_RE = _date_re.compile(r"\b(19|20)\d{2}\b")
+
+def guess_date_from_text(text: str) -> Optional[str]:
+    """当 RSS/网页条目没有可靠发布时间时，尝试从标题/摘要里找出年份
+    （如“2015年会员更新”），避免把陈旧的历史存档内容误判为最新动态。
+    找到年份则返回该年 1月1日 作为保守估算时间；找不到返回 None。"""
+    if not text:
+        return None
+    m = _YEAR_RE.search(text)
+    if not m:
+        return None
+    year = int(m.group())
+    if year < 1990 or year > datetime.now().year:
+        return None
+    try:
+        return datetime(year, 1, 1, tzinfo=timezone.utc).isoformat()
+    except Exception:
+        return None
+
 def load_rss(name: str, url: str) -> List[Dict]:
     articles = []
     try:
         feed = feedparser.parse(url, request_headers={"User-Agent": HEADERS["User-Agent"]})
-        for entry in feed.entries:
+        for idx, entry in enumerate(feed.entries):
             dt = None
             for f in ['published_parsed', 'updated_parsed']:
                 if hasattr(entry, f) and getattr(entry, f):
@@ -155,26 +175,105 @@ def load_rss(name: str, url: str) -> List[Dict]:
                     except:
                         pass
                     break
-            # 过滤超过2年的旧内容
-            if dt:
-                age = datetime.now(timezone.utc) - datetime.fromisoformat(dt)
-                if age.days > 730:
-                    continue
             title = getattr(entry, 'title', '').strip()
             link = getattr(entry, 'link', '').strip()
+            raw_summary = clean_text(getattr(entry, 'summary', ''))
+            if not dt:
+                # feed 没给真实日期：先尝试从文本里猜年份，猜不到再用抓取时间兜底
+                # （并用微小递减偏移避免同批次时间完全相同导致排序扎堆）
+                dt = guess_date_from_text(f"{title} {raw_summary}") or \
+                     (datetime.now(timezone.utc) - timedelta(seconds=idx)).isoformat()
+            # 过滤超过2年的旧内容
+            age = datetime.now(timezone.utc) - datetime.fromisoformat(dt)
+            if age.days > 730:
+                continue
             if not title or not link:
+                continue
+            if is_marketing_content(title, link):
                 continue
             articles.append({
                 "title": title,
                 "link": link,
                 "source": name,
-                "dt": dt or datetime.now(timezone.utc).isoformat(),
-                "raw_summary": clean_text(getattr(entry, 'summary', '')),
+                "dt": dt,
+                "raw_summary": raw_summary,
                 "fetched_at": datetime.now(timezone.utc).isoformat(),
             })
     except Exception as e:
         print(f"RSS error {name}: {e}")
     return articles
+
+# 行业媒体只需要新闻/资讯/发布类内容，过滤掉营销/传播/广告类页面
+MARKETING_EXCLUDE_PATTERNS = [
+    "marketing", "campaign", "sponsored", "advertorial", "advertising", "brand-voice",
+    "/ads/", "promo", "rebranding-campaign", "influencer",
+    "广告", "营销", "宣传", "代言", "联名营销", "推广合作", "软文",
+]
+
+def is_marketing_content(title: str, href: str) -> bool:
+    blob = f"{title} {href}".lower()
+    return any(p in blob for p in MARKETING_EXCLUDE_PATTERNS)
+
+_DATE_DMY_RE = _date_re.compile(r"\b(\d{1,2})[.\-/](\d{1,2})[.\-/](20\d{2})\b")   # 26.06.2026 / 26-06-2026
+_DATE_YMD_RE = _date_re.compile(r"\b(20\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})\b")   # 2026-06-26
+
+def parse_date_string(raw: str) -> Optional[str]:
+    """解析多种常见日期格式，返回 UTC ISO 字符串。支持 ISO、德式/欧式 DD.MM.YYYY、YYYY-MM-DD。"""
+    if not raw:
+        return None
+    raw = raw.strip()
+    # 先试 ISO（含 datetime 属性）
+    try:
+        d = datetime.fromisoformat(raw.replace("Z", "+00:00")[:25])
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=timezone.utc)
+        return d.astimezone(timezone.utc).isoformat()
+    except Exception:
+        pass
+    m = _DATE_DMY_RE.search(raw)
+    if m:
+        day, month, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            return datetime(year, month, day, tzinfo=timezone.utc).isoformat()
+        except Exception:
+            pass
+    m = _DATE_YMD_RE.search(raw)
+    if m:
+        year, month, day = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            return datetime(year, month, day, tzinfo=timezone.utc).isoformat()
+        except Exception:
+            pass
+    return None
+
+def extract_item_date(item, date_sel: Optional[str] = None) -> Optional[str]:
+    """尝试从网页条目中提取真实发布时间，而不是统一标记为抓取时刻，
+    避免网页抓取来源在排序/统计时出现“时间滞后/失真”的问题。
+    会向上回溯几层父容器查找 <time> 标签或日期文本。"""
+    # 从 item 自身开始，逐级向父容器扩大搜索范围
+    search_roots = [item]
+    node = item
+    for _ in range(4):
+        node = getattr(node, "parent", None)
+        if node is None:
+            break
+        search_roots.append(node)
+
+    for root in search_roots:
+        candidates = []
+        if date_sel:
+            candidates.append(root.select_one(date_sel))
+        candidates.append(root.select_one("time[datetime]"))
+        candidates.append(root.select_one("time"))
+        candidates.append(root.select_one(".date, .post-date, .entry-date, .meta-date"))
+        for el in candidates:
+            if not el:
+                continue
+            raw = el.get("datetime") or el.get_text(" ", strip=True)
+            parsed = parse_date_string(raw)
+            if parsed:
+                return parsed
+    return None
 
 def scrape_site(name: str, config_data) -> List[Dict]:
     """
@@ -193,7 +292,7 @@ def scrape_site(name: str, config_data) -> List[Dict]:
             res.raise_for_status()
             soup = BeautifulSoup(res.text, "html.parser")
             seen = set()
-            for element in soup.select(selector):
+            for idx, element in enumerate(soup.select(selector)):
                 a = element if element.name == 'a' else element.find('a')
                 if not a:
                     continue
@@ -207,12 +306,21 @@ def scrape_site(name: str, config_data) -> List[Dict]:
                                   'facebook', 'twitter', 'linkedin', 'instagram']
                 if any(p in href.lower() or p in title.lower() for p in skip_patterns):
                     continue
+                # 跳过“阅读更多/Read more”等非标题链接（常与正文标题指向同一篇）
+                read_more = ['weiterlesen', 'mehr lesen', 'read more', 'lire la suite',
+                             'leer más', 'continue reading', '阅读更多', '查看详情', '更多']
+                if any(title.lower().startswith(p) or title.lower() == p for p in read_more):
+                    continue
+                if is_marketing_content(title, href):
+                    continue
                 link = urljoin(target_url, href)
                 key = title[:60]
                 if key not in seen:
+                    item_dt = (extract_item_date(element) or guess_date_from_text(title) or
+                               (datetime.now(timezone.utc) - timedelta(seconds=idx)).isoformat())
                     articles.append({
                         "title": title, "link": link, "source": name,
-                        "dt": datetime.now(timezone.utc).isoformat(),
+                        "dt": item_dt,
                         "raw_summary": "",
                         "fetched_at": datetime.now(timezone.utc).isoformat(),
                     })
@@ -229,7 +337,7 @@ def scrape_site(name: str, config_data) -> List[Dict]:
             res.raise_for_status()
             soup = BeautifulSoup(res.text, "html.parser")
             seen = set()
-            for item in soup.select(item_sel):
+            for idx, item in enumerate(soup.select(item_sel)):
                 t_el = item.select_one(title_sel)
                 if not t_el:
                     continue
@@ -238,6 +346,8 @@ def scrape_site(name: str, config_data) -> List[Dict]:
                 href = (a_el.get("href", "") if a_el else "")
                 if not title or len(title) < 8:
                     continue
+                if is_marketing_content(title, href):
+                    continue
                 link = urljoin(news_url, href) if href else news_url
                 summary = ""
                 if sum_sel:
@@ -245,9 +355,12 @@ def scrape_site(name: str, config_data) -> List[Dict]:
                     summary = s_el.get_text(strip=True) if s_el else ""
                 key = title[:60]
                 if key not in seen:
+                    item_dt = (extract_item_date(item, config_data.get("date")) or
+                               guess_date_from_text(title) or
+                               (datetime.now(timezone.utc) - timedelta(seconds=idx)).isoformat())
                     articles.append({
                         "title": title, "link": link, "source": name,
-                        "dt": datetime.now(timezone.utc).isoformat(),
+                        "dt": item_dt,
                         "raw_summary": clean_text(summary),
                         "fetched_at": datetime.now(timezone.utc).isoformat(),
                     })
@@ -259,6 +372,8 @@ def scrape_site(name: str, config_data) -> List[Dict]:
     return articles
 
 def search_discovery(keywords: List[str]) -> List[Dict]:
+    """全网情报发现。原使用 DuckDuckGo（中国大陆访问受限），改为使用
+    cn.bing.com（国内可直接访问的必应中国站）作为搜索后端。"""
     import random
     articles = []
     selected_kws = random.sample(keywords, min(len(keywords), 4))
@@ -266,16 +381,15 @@ def search_discovery(keywords: List[str]) -> List[Dict]:
     for kw in selected_kws:
         try:
             search_query = f'"{kw}" {industry_context} news'
-            url = f"https://html.duckduckgo.com/html/?q={search_query.replace(' ', '+')}&df=m"
+            url = f"https://cn.bing.com/search?q={search_query.replace(' ', '+')}&qft=interval%3d%228%22"
             res = requests.get(url, timeout=15, headers=HEADERS)
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, "html.parser")
-                for r in soup.select('.result')[:6]:
-                    a = r.select_one('.result__a')
-                    snippet = r.select_one('.result__snippet')
+                for r in soup.select('li.b_algo')[:6]:
+                    a = r.select_one('h2 a')
+                    snippet = r.select_one('.b_caption p') or r.select_one('p')
                     if a and a.get('href'):
                         title = a.get_text(strip=True)
-                        snip_text = snippet.get_text().lower() if snippet else ""
                         if len(title) > 10:
                             articles.append({
                                 "title": f"✨ {title}",
@@ -313,8 +427,18 @@ def _bg_update(store_path, rss_dict, scrape_dict, state_key, keywords=None):
         # 只保留最近2年内的文章，并最多保留800条
         cutoff = (datetime.now(timezone.utc) - timedelta(days=730)).isoformat()
         merged = [a for a in merged if a.get('dt', '') >= cutoff or a.get('dt', '') == '']
-        store_write(store_path, merged[:800])
+        merged = merged[:800]
+        store_write(store_path, merged)
         set_update_state(state_key, datetime.now(timezone.utc).isoformat())
+        # 抓取完成后顺带预热翻译缓存：用户打开页面时直接命中，无需等待联网翻译
+        try:
+            warm_texts = []
+            for a in merged[:300]:
+                warm_texts.append(a.get("title", ""))
+                warm_texts.append(a.get("raw_summary", ""))
+            warm_translations(warm_texts)
+        except Exception as te:
+            print(f"warm translate error: {te}")
     except Exception as e:
         print(f"BG update error: {e}")
 
@@ -330,6 +454,27 @@ def trigger_bg_update(store_path, rss_dict, scrape_dict, state_key, interval_min
 # ============================================================
 # AI 分析功能
 # ============================================================
+def call_cloudflare_ai(prompt: str, api_key: str, max_tokens: int = 2000) -> str:
+    """调用 Cloudflare Workers AI 免费模型。
+    api_key 格式要求为 "account_id:api_token"（在 Cloudflare Dashboard -> Workers AI 获取）。"""
+    if ":" not in api_key:
+        return "Cloudflare Key 格式错误，请填写 \"账户ID:API令牌\"（用英文冒号分隔），可在 Cloudflare Dashboard 的 Workers AI 页面获取。"
+    account_id, token = api_key.split(":", 1)
+    model = "@cf/meta/llama-3.1-8b-instruct"
+    try:
+        res = requests.post(
+            f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={"messages": [{"role": "user", "content": prompt}], "max_tokens": max_tokens},
+            timeout=90
+        )
+        data = res.json()
+        if data.get("success"):
+            return data["result"]["response"]
+        return f"Cloudflare AI 返回错误：{data.get('errors', data)}"
+    except Exception as e:
+        return f"Cloudflare AI 调用出错：{str(e)}"
+
 def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai", months: int = 6) -> str:
     """用外部大模型对指定月数内文章进行行业分析"""
     cutoff = datetime.now(timezone.utc) - timedelta(days=30 * months)
@@ -434,8 +579,10 @@ def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai"
                 return data["choices"][0]["message"]["content"]
             else:
                 return f"OpenRouter 返回错误：{data.get('error', {}).get('message', str(data))}"
+        elif provider == "cloudflare":
+            return call_cloudflare_ai(prompt, api_key, max_tokens=2000)
         else:
-            return "不支持的 AI 提供商，请选择 OpenRouter / OpenAI / DeepSeek / Anthropic / 通义千问。"
+            return "不支持的 AI 提供商，请选择 OpenRouter / Cloudflare / OpenAI / DeepSeek / Anthropic / 通义千问。"
     except Exception as e:
         return f"AI 分析出错：{str(e)}\n\n请检查 API Key 是否正确，以及网络连接是否正常。"
 
@@ -447,45 +594,62 @@ def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai"
 # ---- 主题定义：采用「必须命中 + 加分词」双层逻辑 ----
 SENTIMENT_THEMES = {
     "高管人事变动": {
-        "must_any_zh": ["离职", "辞职", "卸任", "退休", "接任", "就任", "任命为", "升任", "出任", "新任"],
-        "must_any_en": ["resign", "steps down", "step down", "departure", "appointed as", "named as",
-                        "new CEO", "new president", "successor", "replaces", "takes over as",
-                        "joins as", "promoted to", "hired as", "fired", "ousted"],
-        "boost_zh": ["CEO", "总裁", "董事长", "总经理", "首席执行官", "副总裁"],
-        "boost_en": ["CEO", "president", "chairman", "chief", "executive", "VP"],
-        "exclude_if_en": ["award", "conference", "exhibition", "show", "report", "study",
-                          "trend", "market", "product", "collection", "design"],
+        # strong：含义明确、单独命中即可判定为人事变动
+        "strong_any_zh": ["离职", "辞职", "卸任", "退休", "任命为", "升任为", "接替"],
+        "strong_any_en": ["resign", "steps down", "step down", "appointed as", "named as",
+                          "new CEO", "new president", "successor to", "replaces", "takes over as",
+                          "promoted to", "fired", "ousted", "to retire",
+                          # 德/法/西/意 高频人事词（本项目来源多为这些语种）
+                          "neu besetzt", "ernennung", "nachfolge", "ernennt", "geht in den ruhestand",
+                          "nomination", "nommé", "nommée", "nombrado", "nuovo amministratore"],
+        # weak：较泛化，需要有角色/职位词(boost)佐证才算
+        "must_any_zh": ["接任", "就任", "出任", "新任", "上任", "履新", "加入", "任命"],
+        "must_any_en": ["departure", "joins as", "hired", "appoint", "appointed", "named",
+                        "manager", "management", "leadership", "managment",
+                        "wechsel", "verstärkt", "übernimmt die leitung", "rejoint"],
+        "boost_zh": ["CEO", "总裁", "董事长", "总经理", "首席", "主席", "负责人", "高管", "管理人员", "总监"],
+        "boost_en": ["CEO", "CFO", "CTO", "president", "chairman", "chief", "executive", "VP",
+                    "director", "head of", "managing director", "country manager",
+                    "geschäftsführer", "vorstand", "leiter", "leitung", "directeur", "ressort"],
+        "exclude_if_en": ["award", "conference", "exhibition", "show", "fair", "product",
+                          "collection", "store opening"],
         "color": "#ef4444",
         "icon": "\U0001f454"
     },
     "并购与战略合作": {
-        "must_any_zh": ["收购", "并购", "合并", "战略合作", "入股", "控股", "股权转让", "联合成立"],
-        "must_any_en": ["acquires", "acquired", "acquisition", "merger", "merges", "takeover",
-                        "buys", "purchased", "joint venture", "strategic partnership", "stakes in",
-                        "invest in", "investment in", "equity stake"],
-        "boost_zh": ["投资", "合作"],
-        "boost_en": ["deal", "billion", "million", "agreement"],
+        "strong_any_zh": ["收购", "并购", "合并", "入股", "控股", "股权转让", "联合成立", "战略合作"],
+        "strong_any_en": ["acquires", "acquired", "acquisition", "merger", "merges", "takeover",
+                         "joint venture", "strategic partnership", "equity stake", "buys stake",
+                         "übernimmt", "übernahme"],
+        "must_any_zh": ["合作", "投资", "携手", "联手"],
+        "must_any_en": ["buys", "purchased", "stakes in", "invest in", "investment in", "partners with"],
+        "boost_zh": ["亿", "万", "股权", "交易"],
+        "boost_en": ["deal", "billion", "million", "agreement", "stake"],
         "exclude_if_en": ["award", "conference", "exhibition"],
         "color": "#f59e0b",
         "icon": "\U0001f91d"
     },
     "新品与技术发布": {
-        "must_any_zh": ["发布", "推出", "上市", "新品", "首发", "全新", "专利获批", "技术突破"],
-        "must_any_en": ["launches", "unveiled", "introduces", "new product", "debut",
-                        "released", "announcing", "patent granted", "breakthrough"],
-        "boost_zh": ["创新", "智能", "节水"],
-        "boost_en": ["award", "design", "smart", "IoT", "sustainable"],
+        "strong_any_zh": ["发布新", "推出新", "新品上市", "首发", "专利获批", "技术突破", "新系列"],
+        "strong_any_en": ["launches", "unveiled", "unveils", "introduces", "new product", "new collection",
+                         "debut", "patent granted", "breakthrough", "new range", "new line"],
+        "must_any_zh": ["发布", "推出", "上市", "新品", "全新"],
+        "must_any_en": ["released", "announcing", "presents", "showcases"],
+        "boost_zh": ["创新", "智能", "节水", "系列", "产品"],
+        "boost_en": ["design", "smart", "IoT", "sustainable", "product", "collection", "series"],
         "exclude_if_en": [],
         "color": "#10b981",
         "icon": "\U0001f680"
     },
     "财务与市场变化": {
-        "must_any_zh": ["裁员", "亏损", "盈利增长", "营收下滑", "破产", "重组", "市场份额", "季报", "年报"],
-        "must_any_en": ["layoffs", "job cuts", "bankruptcy", "restructuring", "revenue decline",
-                        "profit warning", "quarterly results", "annual report", "market share",
-                        "sales drop", "record revenue", "earnings"],
-        "boost_zh": ["增长", "下滑"],
-        "boost_en": ["billion", "million", "percent", "growth", "decline"],
+        "strong_any_zh": ["裁员", "亏损", "破产", "重组", "营收下滑", "盈利增长", "季报", "年报"],
+        "strong_any_en": ["layoffs", "job cuts", "bankruptcy", "insolvency", "restructuring",
+                         "revenue decline", "profit warning", "quarterly results", "annual report",
+                         "record revenue", "earnings", "sales drop"],
+        "must_any_zh": ["市场份额", "营收", "销售额", "业绩"],
+        "must_any_en": ["market share", "turnover", "sales rose", "sales fell", "revenue"],
+        "boost_zh": ["亿", "万", "增长", "下滑", "百分"],
+        "boost_en": ["billion", "million", "percent", "growth", "decline", "%"],
         "exclude_if_en": ["award", "exhibition", "conference"],
         "color": "#6366f1",
         "icon": "\U0001f4c8"
@@ -493,41 +657,62 @@ SENTIMENT_THEMES = {
 }
 
 
-def match_sentiment_theme(article: Dict, theme_config: Dict) -> tuple:
-    """精准复合匹配。返回 (matched: bool, confidence: int)"""
+def match_sentiment_theme(article: Dict, theme_config: Dict, companies: Optional[List[str]] = None) -> tuple:
+    """分层匹配：
+    - 命中「强词(strong)」→ 含义明确，直接判定（高置信）。
+    - 仅命中「弱词(weak/泛化词)」→ 必须同时有角色/金额/企业名等 boost 词佐证才算（普通置信）。
+    既避免单独泛化词造成误判，又不漏掉没有明显职位词以外的真实动态。
+    支持两种配置写法：分语言键(strong_any_zh/en…) 或统一列表键(strong/weak/boost/exclude)。
+    若条目命中重点企业(companies)，额外加分并提升置信。
+    返回 (matched: bool, confidence: int)"""
     title = article.get("title", "") or ""
     summary = article.get("raw_summary", "") or ""
     text = (title + " " + summary).lower()
 
-    must_zh = theme_config.get("must_any_zh", [])
-    must_en = theme_config.get("must_any_en", [])
-    boost_zh = theme_config.get("boost_zh", [])
-    boost_en = theme_config.get("boost_en", [])
-    excludes = theme_config.get("exclude_if_en", [])
+    strong = (theme_config.get("strong", [])
+              + theme_config.get("strong_any_zh", []) + theme_config.get("strong_any_en", []))
+    weak = (theme_config.get("weak", [])
+            + theme_config.get("must_any_zh", []) + theme_config.get("must_any_en", []))
+    boost = (theme_config.get("boost", [])
+             + theme_config.get("boost_zh", []) + theme_config.get("boost_en", []))
+    excludes = theme_config.get("exclude", []) + theme_config.get("exclude_if_en", [])
 
-    hit_must = any(kw.lower() in text for kw in must_zh + must_en)
-    if not hit_must:
-        return False, 0
-
+    hit_strong = any(kw.lower() in text for kw in strong)
+    hit_weak = any(kw.lower() in text for kw in weak)
+    boost_score = sum(1 for kw in boost if kw.lower() in text)
     hit_exclude = any(kw.lower() in text for kw in excludes) if excludes else False
-    boost_score = sum(1 for kw in boost_zh + boost_en if kw.lower() in text)
 
-    if hit_exclude and boost_score == 0:
-        return False, 0
+    # 重点企业命中：算作一个强 boost
+    hit_company = False
+    if companies:
+        hit_company = any(c.lower() in text for c in companies if c)
+        if hit_company:
+            boost_score += 1
 
-    confidence = 2 if boost_score >= 1 else 1
-    return True, confidence
+    if hit_strong:
+        # 强词命中：除非命中排除词且毫无 boost 支撑，否则判定为匹配
+        if hit_exclude and boost_score == 0:
+            return False, 0
+        return True, 2
+    if hit_weak and boost_score >= 1:
+        if hit_exclude:
+            return False, 0
+        # 命中重点企业的弱匹配也提升为高置信
+        return True, 2 if hit_company else 1
+    return False, 0
 
 
-def get_sentiment_articles(all_articles: List[Dict], theme_name: str, days: int) -> List[Dict]:
+def get_sentiment_articles(all_articles: List[Dict], theme_name: str, days: int,
+                           themes: Optional[Dict] = None, companies: Optional[List[str]] = None) -> List[Dict]:
     """获取指定主题、指定天数内的匹配文章，按置信度+时间排序"""
-    theme_config = SENTIMENT_THEMES.get(theme_name, {})
+    themes = themes or SENTIMENT_THEMES
+    theme_config = themes.get(theme_name, {})
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     matched = []
     for a in all_articles:
         if (a.get("dt", "") or "") < cutoff:
             continue
-        hit, conf = match_sentiment_theme(a, theme_config)
+        hit, conf = match_sentiment_theme(a, theme_config, companies)
         if hit:
             matched.append({**a, "_confidence": conf})
     matched.sort(key=lambda x: (x.get("_confidence", 0), x.get("dt", "")), reverse=True)
@@ -587,6 +772,8 @@ def ai_classify_sentiment(articles: List[Dict], theme_name: str, api_key: str, p
                 json={"model": "qwen-turbo", "input": {"messages": [{"role": "user", "content": prompt}]}},
                 timeout=60)
             result_text = res.json()["output"]["text"]
+        elif provider == "cloudflare":
+            result_text = call_cloudflare_ai(prompt, api_key, max_tokens=1500)
 
         import re as _re
         json_match = _re.search(r'\[.*?\]', result_text, _re.DOTALL)
@@ -603,10 +790,13 @@ def ai_classify_sentiment(articles: List[Dict], theme_name: str, api_key: str, p
         return articles
 
 
-def render_sentiment_tab(all_articles: List[Dict], enable_translate: bool):
+def render_sentiment_tab(all_articles: List[Dict], enable_translate: bool,
+                         themes: Optional[Dict] = None, companies: Optional[List[str]] = None):
     """渲染舆情监督 Tab"""
+    themes = themes or SENTIMENT_THEMES
+    companies = companies or []
     st.markdown("### 📡 舆情监督中心")
-    st.caption("精准追踪行业关键动态：人事变动、并购消息、新品发布、财务预警")
+    st.caption("精准追踪行业关键动态：人事变动、并购、财务、运营变动、战略举措（重点企业自动加分）")
 
     if not all_articles:
         st.info("⏳ 暂无数据，请先在媒体/协会页点击「强制刷新」")
@@ -634,9 +824,10 @@ def render_sentiment_tab(all_articles: List[Dict], enable_translate: bool):
         use_ai_filter = st.checkbox("启用 AI 过滤去除误匹配", key="sentiment_use_ai")
         sent_ai_provider = st.selectbox(
             "AI提供商",
-            ["openrouter", "openai", "deepseek", "anthropic", "qwen"],
+            ["openrouter", "cloudflare", "openai", "deepseek", "anthropic", "qwen"],
             format_func=lambda x: {
                 "openrouter": "🆓 OpenRouter 免费",
+                "cloudflare": "🆓 Cloudflare 免费",
                 "openai": "OpenAI", "deepseek": "DeepSeek",
                 "anthropic": "Anthropic", "qwen": "通义千问"
             }[x],
@@ -647,7 +838,7 @@ def render_sentiment_tab(all_articles: List[Dict], enable_translate: bool):
             "API Key",
             type="password",
             key="sentiment_api_key",
-            placeholder="sk-...",
+            placeholder="sk-... （Cloudflare 请填 账户ID:API令牌）",
             label_visibility="collapsed"
         )
 
@@ -679,6 +870,9 @@ def render_sentiment_tab(all_articles: List[Dict], enable_translate: bool):
         label = st.session_state.get("custom_kw_label", "")
         st.markdown(f"**🔍 自定义追踪：{label} — 匹配 {len(results)} 条**")
         if results:
+            if enable_translate:
+                warm_translations([a.get("title", "") for a in results[:25]]
+                                  + [a.get("raw_summary", "") for a in results[:25]])
             for a in results[:25]:
                 _render_sentiment_card(a, enable_translate, "#7c3aed", show_ai_reason=True)
         else:
@@ -694,10 +888,10 @@ def render_sentiment_tab(all_articles: List[Dict], enable_translate: bool):
     selected_days = period_options[selected_period]
 
     # 汇总数字卡片
-    stat_cols = st.columns(len(SENTIMENT_THEMES))
+    stat_cols = st.columns(len(themes))
     theme_counts = {}
-    for i, (theme_name, theme_cfg) in enumerate(SENTIMENT_THEMES.items()):
-        matched = get_sentiment_articles(all_articles, theme_name, selected_days)
+    for i, (theme_name, theme_cfg) in enumerate(themes.items()):
+        matched = get_sentiment_articles(all_articles, theme_name, selected_days, themes, companies)
         theme_counts[theme_name] = matched
         color = theme_cfg["color"]
         icon = theme_cfg["icon"]
@@ -714,12 +908,21 @@ def render_sentiment_tab(all_articles: List[Dict], enable_translate: bool):
 
     st.markdown("<div style='margin:12px 0'></div>", unsafe_allow_html=True)
 
+    # 并发预热所有将展示主题的翻译（每主题前30条）
+    if enable_translate:
+        warm_texts = []
+        for tn in themes:
+            for a in theme_counts.get(tn, [])[:30]:
+                warm_texts.append(a.get("title", ""))
+                warm_texts.append(a.get("raw_summary", ""))
+        warm_translations(warm_texts)
+
     # 分主题详情
-    for theme_name, theme_cfg in SENTIMENT_THEMES.items():
+    for idx, (theme_name, theme_cfg) in enumerate(themes.items()):
         matched = theme_counts[theme_name]
         color = theme_cfg["color"]
         icon = theme_cfg["icon"]
-        is_first = theme_name == "高管人事变动"
+        is_first = idx == 0
         with st.expander(f"{icon} {theme_name} — {selected_period}内 {len(matched)} 条", expanded=is_first):
             if not matched:
                 st.info(f"近 {selected_days} 天内暂无精准匹配的{theme_name}动态")
@@ -795,17 +998,81 @@ def _render_sentiment_card(a: Dict, enable_translate: bool, color: str, show_ai_
 # ============================================================
 PAGE_SIZE = 20
 
-def translate_safe(text: str, enable: bool) -> str:
-    if not enable or not text or len(text) < 3:
-        return text
+# ---- 翻译缓存（内存 + 磁盘），避免每次渲染都重复发起网络翻译请求 ----
+TRANS_CACHE_FILE = os.path.join(CACHE_DIR, "translations.json")
+_TRANS_CACHE = {}
+_TRANS_DIRTY = False
+
+def _load_trans_cache():
+    global _TRANS_CACHE
+    if _TRANS_CACHE:
+        return
+    if os.path.exists(TRANS_CACHE_FILE):
+        try:
+            with open(TRANS_CACHE_FILE, "r", encoding="utf-8") as f:
+                _TRANS_CACHE = json.load(f)
+        except:
+            _TRANS_CACHE = {}
+
+def _flush_trans_cache():
+    global _TRANS_DIRTY
+    if not _TRANS_DIRTY:
+        return
     try:
-        # 如果已经主要是中文就跳过
-        chinese_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
-        if chinese_chars / max(len(text), 1) > 0.3:
-            return text
+        with open(TRANS_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(_TRANS_CACHE, f, ensure_ascii=False)
+        _TRANS_DIRTY = False
+    except:
+        pass
+
+def _needs_translation(text):
+    if not text or len(text) < 3:
+        return False
+    chinese_chars = sum(1 for c in text if '一' <= c <= '鿿')
+    return chinese_chars / max(len(text), 1) <= 0.3
+
+def _do_translate(text):
+    try:
         return GoogleTranslator(source='auto', target='zh-CN').translate(text[:500]) or text
     except:
         return text
+
+def warm_translations(texts):
+    """并发预热翻译缓存：把一批待翻译文本并行翻好，渲染时直接命中缓存。"""
+    global _TRANS_DIRTY
+    _load_trans_cache()
+    todo, seen = [], set()
+    for t in texts:
+        if not t or t in seen:
+            continue
+        seen.add(t)
+        key = t[:500]
+        if _needs_translation(t) and key not in _TRANS_CACHE:
+            todo.append(key)
+    if not todo:
+        return
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=12) as ex:
+        results = list(ex.map(_do_translate, todo))
+    for key, val in zip(todo, results):
+        _TRANS_CACHE[key] = val
+    _TRANS_DIRTY = True
+    _flush_trans_cache()
+
+def translate_safe(text: str, enable: bool) -> str:
+    if not enable or not text or len(text) < 3:
+        return text
+    if not _needs_translation(text):
+        return text
+    _load_trans_cache()
+    key = text[:500]
+    if key in _TRANS_CACHE:
+        return _TRANS_CACHE[key]
+    global _TRANS_DIRTY
+    val = _do_translate(text)
+    _TRANS_CACHE[key] = val
+    _TRANS_DIRTY = True
+    return val
 
 def render_list(articles: List[Dict], enable_ai_translate: bool, sort_mode: str, tab_key: str):
     if not articles:
@@ -862,6 +1129,11 @@ def render_list(articles: List[Dict], enable_ai_translate: bool, sort_mode: str,
     start = (page - 1) * PAGE_SIZE
     end = min(start + PAGE_SIZE, total)
     page_articles = articles[start:end]
+
+    # 并发预热当前页翻译，避免逐条串行网络请求拖慢渲染
+    if enable_ai_translate:
+        warm_translations([a.get('title', '') for a in page_articles]
+                          + [a.get('raw_summary', '') for a in page_articles])
 
     # 渲染文章
     for a in page_articles:
@@ -940,9 +1212,10 @@ def main():
 
         ai_provider = st.selectbox(
             "AI 提供商",
-            ["openrouter", "openai", "deepseek", "anthropic", "qwen"],
+            ["openrouter", "cloudflare", "openai", "deepseek", "anthropic", "qwen"],
             format_func=lambda x: {
                 "openrouter": "🆓 OpenRouter (免费模型)",
+                "cloudflare": "🆓 Cloudflare Workers AI (免费)",
                 "openai": "OpenAI (GPT-4o mini)",
                 "deepseek": "DeepSeek",
                 "anthropic": "Anthropic (Claude)",
@@ -951,10 +1224,12 @@ def main():
         )
         if ai_provider == "openrouter":
             st.caption("OpenRouter 免费模型：注册 openrouter.ai 获取免费 API Key，每天有免费额度")
+        if ai_provider == "cloudflare":
+            st.caption("Cloudflare 免费模型：在 dash.cloudflare.com 的 Workers AI 页面获取，Key 格式为「账户ID:API令牌」")
         ai_key = st.text_input(
             "API Key",
             type="password",
-            placeholder="sk-... 或对应 key",
+            placeholder="sk-... 或对应 key（Cloudflare 为 账户ID:API令牌）",
             help="Key 仅在当前会话中使用，不会存储"
         )
 
@@ -990,6 +1265,10 @@ def main():
     # ---- 主内容区 ----
     all_articles = store_read(MEDIA_STORE) + store_read(ASSOC_STORE)
 
+    # 从 config 加载舆情主题与重点企业（若缺省则用内置默认）
+    themes = config.get("sentiment_themes") or SENTIMENT_THEMES
+    companies = config.get("companies", [])
+
     tab_media, tab_assoc, tab_discovery, tab_sentiment, tab_analysis = st.tabs([
         "📰 行业媒体", "🏛 行业协会", "🔍 情报发现", "📡 舆情监督", "🤖 AI 分析报告"
     ])
@@ -1005,7 +1284,9 @@ def main():
         render_list(articles, enable_translate, sort_mode, "assoc")
 
     with tab_discovery:
-        keywords = config.get("keywords", [])
+        # 情报发现关键词 = 重点企业名 + 通用关键词，定向追踪 33 家企业动态
+        keywords = (companies or []) + config.get("keywords", [])
+        st.caption(f"将对 {len(companies)} 家重点企业 + {len(config.get('keywords', []))} 个行业关键词进行全网定向搜索")
         if st.button("🚀 启动全网情报发现", use_container_width=True):
             trigger_bg_update(DISCOVERY_STORE, None, None, "discovery", interval_minutes=0, keywords=keywords)
             st.toast("✅ 情报发现已启动，约1分钟后刷新")
@@ -1013,7 +1294,7 @@ def main():
         render_list(articles, enable_translate, sort_mode, "discovery")
 
     with tab_sentiment:
-        render_sentiment_tab(all_articles, enable_translate)
+        render_sentiment_tab(all_articles, enable_translate, themes, companies)
 
     with tab_analysis:
         if "ai_analysis" in st.session_state:
