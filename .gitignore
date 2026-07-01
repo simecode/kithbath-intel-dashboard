@@ -37,6 +37,15 @@ env/
 .intel_store/
 .intel_cache/
 .streamlit/secrets.toml
+data/
+
+# 私有商业资料 / 数据资产（切勿推到公开仓库）
+订阅方案.md
+部署指南.md
+building_materials_company_monitor_queries.csv
+building_materials_intel_keywords.csv
+网址.txt
+.claude/
 
 # Environment variables
 .env
