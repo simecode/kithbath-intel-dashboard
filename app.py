@@ -23,45 +23,104 @@ st.set_page_config(
 
 modern_css = """
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+    --ink: #1a1a1a;
+    --paper: #EEEAE3;
+    --hair: #ddd6ca;
+    --muted: #8a8172;
+    --accent: #0f766e;
+    --serif: Georgia, 'Times New Roman', 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
+}
+* { box-sizing: border-box; }
 #MainMenu { visibility: hidden; }
 footer { visibility: hidden; }
 .stDeployButton { display: none; }
 header { visibility: hidden; }
+html { scroll-behavior: smooth; }
 
+/* ---- 顶部编辑刊物式导航条 ---- */
+.masthead {
+    background: #1a1a1a;
+    border-radius: 10px;
+    padding: 16px 22px;
+    margin-bottom: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.masthead-brand {
+    font-family: var(--serif);
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: #ffffff;
+    line-height: 1;
+}
+.masthead-tag {
+    font-size: 12px;
+    color: #b5b5b5;
+    letter-spacing: 0.3px;
+}
+
+/* ---- 栏目大标题 ---- */
+.section-title {
+    font-family: var(--serif);
+    font-size: 27px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--ink);
+    margin: 6px 0 16px;
+}
+
+/* ---- 资讯卡片（编辑风：衬线标题 + 署名） ---- */
 .article-card {
-    background: white;
+    background: #ffffff;
+    border: 0.5px solid var(--hair);
     border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 16px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    transition: all 0.3s ease;
-    border-left: 4px solid #2563eb;
+    padding: 18px 20px;
+    margin-bottom: 14px;
+    transition: box-shadow 0.2s ease;
 }
-.article-card:hover {
-    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-    transform: translateY(-2px);
+.article-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+.article-title {
+    font-family: var(--serif);
+    font-size: 19px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--ink);
+    line-height: 1.4;
 }
-.article-title { font-size: 17px; font-weight: 600; margin-bottom: 10px; color: #1f2937; line-height: 1.5; }
 .article-title a { text-decoration: none; color: inherit; }
-.article-title a:hover { color: #2563eb; }
-.article-summary { font-size: 13px; color: #6b7280; margin-bottom: 12px; line-height: 1.6; }
+.article-title a:hover { color: var(--accent); }
+.article-summary { font-size: 13.5px; color: #55503f; margin-bottom: 12px; line-height: 1.65; }
 .article-meta {
     display: flex; justify-content: space-between; align-items: center;
-    flex-wrap: wrap; gap: 8px; font-size: 12px; color: #9ca3af;
-    border-top: 1px solid #e5e7eb; padding-top: 10px;
+    flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--muted);
+    border-top: 0.5px solid var(--hair); padding-top: 10px;
 }
+.byline { font-size: 12px; color: var(--muted); letter-spacing: 0.2px; }
 .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
-.badge-source { background: #dbeafe; color: #1e40af; }
+.badge-source { background: #efece4; color: #55503f; }
+
+/* ---- 作者/交流卡 ---- */
+.author-card {
+    background: #ffffff; border: 0.5px solid var(--hair); border-radius: 10px;
+    padding: 12px 14px; font-size: 12.5px; color: #55503f; line-height: 1.7;
+}
+.author-card b { color: var(--ink); font-weight: 600; }
+.author-card a { color: var(--accent); text-decoration: none; }
+
+/* ---- Tab 微调 ---- */
+.stTabs [data-baseweb="tab-list"] { gap: 4px; }
+.stTabs [data-baseweb="tab"] { font-size: 14px; }
 
 .analysis-box {
-    background: linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 100%);
+    background: #ffffff; border: 0.5px solid var(--hair);
     border-radius: 12px; padding: 20px; margin-bottom: 16px;
-    border-left: 4px solid #4f46e5;
-    white-space: pre-wrap; line-height: 1.8; font-size: 14px; color: #1f2937;
+    white-space: pre-wrap; line-height: 1.8; font-size: 14px; color: var(--ink);
 }
-
-html { scroll-behavior: smooth; }
 </style>
 """
 st.markdown(modern_css, unsafe_allow_html=True)
@@ -980,15 +1039,16 @@ def _render_sentiment_card(a: Dict, enable_translate: bool, color: str, show_ai_
     )
 
     st.markdown(
-        f'<div style="background:white;border-radius:10px;padding:16px;margin-bottom:10px;'
-        f'border-left:4px solid {color};box-shadow:0 1px 6px rgba(0,0,0,0.08)">'
-        f'<div style="font-size:15px;font-weight:600;margin-bottom:6px">'
-        f'<a href="{link}" target="_blank" style="text-decoration:none;color:#1f2937">{title_e}</a>'
+        f'<div style="background:#ffffff;border:0.5px solid #ddd6ca;border-radius:12px;padding:16px 18px;margin-bottom:10px;'
+        f'border-left:4px solid {color}">'
+        f'<div style="font-family:Georgia,\'Noto Serif SC\',serif;font-size:17px;font-weight:600;'
+        f'margin-bottom:6px;line-height:1.4">'
+        f'<a href="{link}" target="_blank" style="text-decoration:none;color:#1a1a1a">{title_e}</a>'
         f'{conf_badge}</div>'
         f'{summary_html}{ai_html}'
-        f'<div style="display:flex;justify-content:space-between;font-size:12px;color:#9ca3af;'
-        f'border-top:1px solid #f3f4f6;padding-top:8px;margin-top:8px">'
-        f'<span>📍 {source_e}</span><span>🕒 {dt_str}</span>'
+        f'<div style="display:flex;justify-content:space-between;font-size:12px;color:#8a8172;'
+        f'border-top:0.5px solid #ddd6ca;padding-top:8px;margin-top:8px">'
+        f'<span>来源 {source_e} · {dt_str}</span><span>阅读原文 ↗</span>'
         f'</div></div>',
         unsafe_allow_html=True
     )
@@ -1154,8 +1214,8 @@ def render_list(articles: List[Dict], enable_ai_translate: bool, sort_mode: str,
             f'<div class="article-title"><a href="{link_safe}" target="_blank">{title_safe}</a></div>'
             f'{summary_html}'
             '<div class="article-meta">'
-            f'<span><span class="badge badge-source">📍 {source_safe}</span></span>'
-            f'<span>🕒 {dt_str}</span>'
+            f'<span class="byline">来源 {source_safe} · {dt_str}</span>'
+            f'<span>阅读原文 ↗</span>'
             '</div>'
             '</div>'
         )
@@ -1185,8 +1245,12 @@ def main():
     config = load_data_sources()
 
     with st.sidebar:
-        st.title("🛰 行业情报系统 v3.5")
-        st.caption("实时监控全球卫浴行业动态")
+        st.markdown(
+            '<div style="font-family:Georgia,\'Noto Serif SC\',serif;font-size:22px;'
+            'font-weight:600;letter-spacing:1px;color:#1a1a1a;line-height:1.1">KitchBath Intel</div>'
+            '<div style="font-size:12px;color:#8a8172;margin-top:4px">Global Bath · Kitchen · Building Materials Intelligence</div>',
+            unsafe_allow_html=True
+        )
         st.divider()
 
         enable_translate = st.checkbox("🌐 启用自动翻译", value=True)
@@ -1262,12 +1326,30 @@ def main():
                     st.session_state["ai_analysis_time"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                     st.session_state["ai_analysis_months"] = analyze_months
 
+        st.divider()
+        st.markdown(
+            '<div class="author-card">'
+            '<b>Author</b> · szeyeung<br>'
+            '<b>交流</b> · <a href="mailto:adala7@sina.com">adala7@sina.com</a>'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
     # ---- 主内容区 ----
     all_articles = store_read(MEDIA_STORE) + store_read(ASSOC_STORE)
 
     # 从 config 加载舆情主题与重点企业（若缺省则用内置默认）
     themes = config.get("sentiment_themes") or SENTIMENT_THEMES
     companies = config.get("companies", [])
+
+    # 顶部编辑刊物式导航条（英文站名，不含订阅/登录）
+    st.markdown(
+        '<div class="masthead">'
+        '<div class="masthead-brand">KitchBath Intel</div>'
+        '<div class="masthead-tag">Global Bath · Kitchen · Building Materials Intelligence</div>'
+        '</div>',
+        unsafe_allow_html=True
+    )
 
     tab_media, tab_assoc, tab_discovery, tab_sentiment, tab_analysis = st.tabs([
         "📰 行业媒体", "🏛 行业协会", "🔍 情报发现", "📡 舆情监督", "🤖 AI 分析报告"
