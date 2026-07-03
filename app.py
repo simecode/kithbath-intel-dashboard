@@ -630,6 +630,33 @@ def call_cloudflare_ai(prompt: str, api_key: str, max_tokens: int = 2000) -> str
     except Exception as e:
         return f"Cloudflare AI 调用出错：{str(e)}"
 
+def _build_reference_list(result_text: str, sample: List[Dict]) -> str:
+    """扫描报告里出现的 [#N] 编号，在末尾生成对应的「参考来源」清单（可点击原文），
+    让读者能核对每条结论的依据。只列出确实被引用到的编号。"""
+    import re as _re
+    nums = set()
+    for m in _re.findall(r'#\s*(\d+)', result_text or ""):
+        try:
+            n = int(m)
+            if 1 <= n <= len(sample):
+                nums.add(n)
+        except Exception:
+            pass
+    if not nums:
+        return ""
+    lines = ["\n\n---\n#### 📎 参考来源（点击查看原文）"]
+    for n in sorted(nums):
+        a = sample[n - 1]
+        title = (a.get("title") or "").replace("\n", " ").strip()
+        src = a.get("source", "")
+        link = a.get("link", "")
+        dt = (a.get("dt", "") or "")[:10]
+        if link:
+            lines.append(f"- **[#{n}]** [{title}]({link}) · {src} · {dt}")
+        else:
+            lines.append(f"- **[#{n}]** {title} · {src} · {dt}")
+    return "\n".join(lines)
+
 def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai", months: int = 6) -> str:
     """用外部大模型对指定月数内文章进行行业分析"""
     cutoff = datetime.now(timezone.utc) - timedelta(days=30 * months)
@@ -705,7 +732,7 @@ def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai"
                 timeout=60
             )
             data = res.json()
-            return data["choices"][0]["message"]["content"]
+            result_text = data["choices"][0]["message"]["content"]
         elif provider == "anthropic":
             res = requests.post(
                 "https://api.anthropic.com/v1/messages",
@@ -714,7 +741,7 @@ def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai"
                 timeout=60
             )
             data = res.json()
-            return data["content"][0]["text"]
+            result_text = data["content"][0]["text"]
         elif provider == "qwen" or provider == "tongyi":
             res = requests.post(
                 "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
@@ -723,13 +750,15 @@ def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai"
                 timeout=60
             )
             data = res.json()
-            return data["output"]["text"]
+            result_text = data["output"]["text"]
         elif provider == "openrouter":
-            return call_openrouter(prompt, api_key, max_tokens=2000)
+            result_text = call_openrouter(prompt, api_key, max_tokens=2000)
         elif provider == "cloudflare":
-            return call_cloudflare_ai(prompt, api_key, max_tokens=2000)
+            result_text = call_cloudflare_ai(prompt, api_key, max_tokens=2000)
         else:
             return "不支持的 AI 提供商，请选择 OpenRouter / Cloudflare / OpenAI / DeepSeek / Anthropic / 通义千问。"
+        # 在报告末尾附上被引用编号对应的真实来源清单（可点击原文）
+        return result_text + _build_reference_list(result_text, sample)
     except Exception as e:
         return f"AI 分析出错：{str(e)}\n\n请检查 API Key 是否正确，以及网络连接是否正常。"
 
