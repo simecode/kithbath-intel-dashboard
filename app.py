@@ -1404,6 +1404,23 @@ def main():
         unsafe_allow_html=True
     )
 
+    # 主区刷新按钮：手机端侧边栏默认收起，这里保证任何设备都能强制刷新
+    top_l, top_r = st.columns([1, 3])
+    with top_l:
+        if st.button("🔄 强制刷新数据", use_container_width=True, key="refresh_main"):
+            trigger_bg_update(MEDIA_STORE, config.get("media_rss"), config.get("media_scrape"), "media", interval_minutes=0)
+            trigger_bg_update(ASSOC_STORE, config.get("assoc_rss"), config.get("assoc_scrape"), "assoc", interval_minutes=0)
+            st.toast("✅ 后台更新已启动，约1-2分钟后刷新页面查看")
+    with top_r:
+        state = get_update_state()
+        parts = []
+        for key, label in [("media", "媒体"), ("assoc", "协会")]:
+            last = state.get(key)
+            if last:
+                parts.append(f"{label} {last[:16].replace('T', ' ')} UTC")
+        if parts:
+            st.caption("📡 最后更新：" + " · ".join(parts))
+
     tab_media, tab_assoc, tab_discovery, tab_sentiment, tab_analysis = st.tabs([
         "📰 行业媒体", "🏛 行业协会", "🔍 情报发现", "📡 舆情监督", "🤖 AI 分析报告"
     ])
