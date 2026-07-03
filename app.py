@@ -554,9 +554,11 @@ def trigger_bg_update(store_path, rss_dict, scrape_dict, state_key, interval_min
 def call_cloudflare_ai(prompt: str, api_key: str, max_tokens: int = 2000) -> str:
     """调用 Cloudflare Workers AI 免费模型。
     api_key 格式要求为 "account_id:api_token"（在 Cloudflare Dashboard -> Workers AI 获取）。"""
+    api_key = (api_key or "").strip()
     if ":" not in api_key:
         return "Cloudflare Key 格式错误，请填写 \"账户ID:API令牌\"（用英文冒号分隔），可在 Cloudflare Dashboard 的 Workers AI 页面获取。"
     account_id, token = api_key.split(":", 1)
+    account_id, token = account_id.strip(), token.strip()
     model = "@cf/meta/llama-3.1-8b-instruct"
     try:
         res = requests.post(
@@ -565,10 +567,22 @@ def call_cloudflare_ai(prompt: str, api_key: str, max_tokens: int = 2000) -> str
             json={"messages": [{"role": "user", "content": prompt}], "max_tokens": max_tokens},
             timeout=90
         )
-        data = res.json()
+        try:
+            data = res.json()
+        except Exception:
+            return f"Cloudflare AI 返回非 JSON（HTTP {res.status_code}）：{res.text[:300]}"
         if data.get("success"):
             return data["result"]["response"]
-        return f"Cloudflare AI 返回错误：{data.get('errors', data)}"
+        # 明确报错信息，便于排查（如账户ID错、令牌无 Workers AI 权限等）
+        errs = data.get("errors") or data.get("messages") or data
+        hint = ""
+        if res.status_code in (401, 403):
+            hint = "（令牌无效或缺少 Workers AI 权限：请用 Account API Token 且授予 'Workers AI - Read/Run'）"
+        elif res.status_code == 404:
+            hint = "（账户ID或模型路径错误：确认冒号前是 Account ID）"
+        elif res.status_code == 400:
+            hint = "（请求参数问题）"
+        return f"Cloudflare AI 报错 HTTP {res.status_code}{hint}：{errs}"
     except Exception as e:
         return f"Cloudflare AI 调用出错：{str(e)}"
 
@@ -659,7 +673,7 @@ def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai"
             data = res.json()
             return data["output"]["text"]
         elif provider == "openrouter":
-            model = "google/gemma-3-27b-it:free"
+            model = "meta-llama/llama-3.3-70b-instruct:free"
             res = requests.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
@@ -851,7 +865,7 @@ def ai_classify_sentiment(articles: List[Dict], theme_name: str, api_key: str, p
             res = requests.post("https://openrouter.ai/api/v1/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json",
                          "HTTP-Referer": "https://kitchbathintel.streamlit.app"},
-                json={"model": "google/gemma-3-27b-it:free",
+                json={"model": "meta-llama/llama-3.3-70b-instruct:free",
                       "messages": [{"role": "user", "content": prompt}], "max_tokens": 1500},
                 timeout=90)
             result_text = res.json()["choices"][0]["message"]["content"]
@@ -1307,64 +1321,6 @@ def main():
                 st.caption(f"📡 {label}最后更新: {last[:16].replace('T',' ')} UTC")
 
         st.divider()
-
-        # ---- AI 分析板块 ----
-        st.markdown("### 🤖 AI 行业分析")
-        st.caption("输入大模型 API Key，对近一年数据生成分析报告")
-
-        ai_provider = st.selectbox(
-            "AI 提供商",
-            ["openrouter", "cloudflare", "openai", "deepseek", "anthropic", "qwen"],
-            format_func=lambda x: {
-                "openrouter": "🆓 OpenRouter (免费模型)",
-                "cloudflare": "🆓 Cloudflare Workers AI (免费)",
-                "openai": "OpenAI (GPT-4o mini)",
-                "deepseek": "DeepSeek",
-                "anthropic": "Anthropic (Claude)",
-                "qwen": "通义千问"
-            }[x]
-        )
-        if ai_provider == "openrouter":
-            st.caption("OpenRouter 免费模型：注册 openrouter.ai 获取免费 API Key，每天有免费额度")
-        if ai_provider == "cloudflare":
-            st.caption("Cloudflare 免费模型：在 dash.cloudflare.com 的 Workers AI 页面获取，Key 格式为「账户ID:API令牌」")
-        ai_key = st.text_input(
-            "API Key",
-            type="password",
-            placeholder="sk-... 或对应 key（Cloudflare 为 账户ID:API令牌）",
-            help="Key 仅在当前会话中使用，不会存储"
-        )
-
-        analyze_scope = st.radio(
-            "分析范围",
-            ["行业媒体", "行业协会", "全部合并"],
-            horizontal=True
-        )
-        analyze_months = st.select_slider(
-            "分析时间段",
-            options=[3, 6, 9, 12],
-            value=6,
-            format_func=lambda x: f"近 {x} 个月"
-        )
-
-        if st.button("🚀 开始生成分析报告", use_container_width=True, type="primary"):
-            if not ai_key:
-                st.error("请先输入 API Key")
-            else:
-                with st.spinner(f"AI 正在分析近 {analyze_months} 个月数据，请稍候（约30-60秒）..."):
-                    if analyze_scope == "行业媒体":
-                        data = store_read(MEDIA_STORE)
-                    elif analyze_scope == "行业协会":
-                        data = store_read(ASSOC_STORE)
-                    else:
-                        data = store_read(MEDIA_STORE) + store_read(ASSOC_STORE)
-
-                    result = analyze_with_ai(data, ai_key, ai_provider, months=analyze_months)
-                    st.session_state["ai_analysis"] = result
-                    st.session_state["ai_analysis_time"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                    st.session_state["ai_analysis_months"] = analyze_months
-
-        st.divider()
         st.markdown(
             '<div class="author-card">'
             '<b>Author</b> · szeyeung<br>'
@@ -1417,25 +1373,72 @@ def main():
         render_sentiment_tab(all_articles, enable_translate, themes, companies)
 
     with tab_analysis:
+        st.markdown("### 🤖 AI 行业分析")
+        st.caption("选择大模型、填入 API Key，对指定时间段的全部资讯生成结构化分析报告")
+
+        ac1, ac2 = st.columns([1, 1])
+        with ac1:
+            ai_provider = st.selectbox(
+                "AI 提供商",
+                ["openrouter", "cloudflare", "openai", "deepseek", "anthropic", "qwen"],
+                format_func=lambda x: {
+                    "openrouter": "🆓 OpenRouter (免费模型)",
+                    "cloudflare": "🆓 Cloudflare Workers AI (免费)",
+                    "openai": "OpenAI (GPT-4o mini)",
+                    "deepseek": "DeepSeek",
+                    "anthropic": "Anthropic (Claude)",
+                    "qwen": "通义千问"
+                }[x],
+                key="analysis_ai_provider"
+            )
+            ai_key = st.text_input(
+                "API Key",
+                type="password",
+                placeholder="sk-... 或对应 key（Cloudflare 为 账户ID:API令牌）",
+                help="Key 仅在当前会话中使用，不会存储",
+                key="analysis_ai_key"
+            )
+        with ac2:
+            analyze_scope = st.radio(
+                "分析范围", ["行业媒体", "行业协会", "全部合并"], horizontal=True,
+                key="analysis_scope"
+            )
+            analyze_months = st.select_slider(
+                "分析时间段", options=[3, 6, 9, 12], value=6,
+                format_func=lambda x: f"近 {x} 个月", key="analysis_months_sel"
+            )
+
+        if ai_provider == "openrouter":
+            st.caption("OpenRouter 免费模型：注册 openrouter.ai 获取免费 API Key，每天有免费额度")
+        if ai_provider == "cloudflare":
+            st.caption("Cloudflare 免费模型：dash.cloudflare.com → Workers AI 获取；Key 格式为「账户ID:API令牌」，令牌需授予 Workers AI 权限")
+
+        if st.button("🚀 开始生成分析报告", use_container_width=True, type="primary", key="analysis_run"):
+            if not ai_key:
+                st.error("请先输入 API Key")
+            else:
+                with st.spinner(f"AI 正在分析近 {analyze_months} 个月数据，请稍候（约30-60秒）..."):
+                    if analyze_scope == "行业媒体":
+                        data = store_read(MEDIA_STORE)
+                    elif analyze_scope == "行业协会":
+                        data = store_read(ASSOC_STORE)
+                    else:
+                        data = store_read(MEDIA_STORE) + store_read(ASSOC_STORE)
+                    result = analyze_with_ai(data, ai_key, ai_provider, months=analyze_months)
+                    st.session_state["ai_analysis"] = result
+                    st.session_state["ai_analysis_time"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    st.session_state["ai_analysis_months"] = analyze_months
+
+        st.divider()
         if "ai_analysis" in st.session_state:
             months_label = st.session_state.get("ai_analysis_months", 6)
             st.markdown(f"**📊 行业分析报告** · 分析周期：近 {months_label} 个月 · 生成于 {st.session_state.get('ai_analysis_time', '')}")
-            st.divider()
-            # 用 st.markdown 直接渲染 markdown 内容（不套 HTML div，避免转义问题）
             st.markdown(st.session_state["ai_analysis"])
             st.divider()
             if st.button("📋 展开原始文本（可复制）"):
                 st.code(st.session_state["ai_analysis"], language=None)
         else:
-            st.info("💡 请在左侧侧边栏输入 API Key 并点击「开始生成分析报告」，结果将显示在这里。")
-            st.markdown("""
-**功能说明：**
-- 自动提取指定月数内的全部行业资讯（媒体+协会）
-- 通过大模型识别主要趋势、企业动态、市场热点
-- **已内置媒体来源提示**，模型不会将媒体平台误认为企业
-- 支持 🆓 OpenRouter 免费模型 / OpenAI / DeepSeek / Anthropic / 通义千问
-- API Key 仅在当前浏览器会话使用，不会被存储或上传
-            """)
+            st.info("💡 在上方选择模型、填入 API Key 并点击「开始生成分析报告」，结果将显示在这里。")
 
 if __name__ == "__main__":
     main()
