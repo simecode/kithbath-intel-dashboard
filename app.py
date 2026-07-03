@@ -575,6 +575,7 @@ def call_openrouter(prompt: str, api_key: str, max_tokens: int = 2000) -> str:
                 "models": OPENROUTER_FREE_MODELS,   # 依次回退
                 "messages": [{"role": "user", "content": prompt}],
                 "max_tokens": max_tokens,
+                "temperature": 0.2,   # 降低随机度，减少编造
             },
             timeout=120,
         )
@@ -608,7 +609,7 @@ def call_cloudflare_ai(prompt: str, api_key: str, max_tokens: int = 2000) -> str
         res = requests.post(
             f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}",
             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-            json={"messages": [{"role": "user", "content": prompt}], "max_tokens": max_tokens},
+            json={"messages": [{"role": "user", "content": prompt}], "max_tokens": max_tokens, "temperature": 0.2},
             timeout=90
         )
         try:
@@ -641,50 +642,48 @@ def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai"
     all_sources = sorted(set(a.get('source', '') for a in recent if a.get('source')))
     sources_note = "、".join(all_sources[:40])
 
-    # 提取标题摘要（最多200条，格式：[来源] 标题（摘要））
+    # 提取标题摘要（最多200条，带编号，格式：序号. [来源] 标题（摘要））
     titles_text = "\n".join([
-        f"- [{a['source']}] {a['title']}" + (f"（{a['raw_summary'][:100]}）" if a.get('raw_summary') else "")
-        for a in recent[:200]
+        f"{i+1}. [{a['source']}] {a['title']}" + (f"（{a['raw_summary'][:120]}）" if a.get('raw_summary') else "")
+        for i, a in enumerate(recent[:200])
     ])
 
     period_label = f"{cutoff.strftime('%Y年%m月')} 至今（约 {months} 个月）"
 
-    prompt = f"""你是一位资深的全球卫浴、厨房和建材行业分析师。
+    prompt = f"""你是一位严谨的全球卫浴、厨房和建材行业分析师。
 
-以下是信息流系统在 {period_label} 从全球行业媒体和协会抓取的 {len(recent)} 条资讯，格式为「[来源平台] 标题（摘要）」：
+以下是信息流系统在 {period_label} 抓取的 {len(recent)} 条资讯，每条格式为「序号. [来源平台] 标题（摘要）」：
 
 {titles_text}
 
-=== 重要说明 ===
-方括号内是【信息来源平台名称】，不是企业名称，包括：{sources_note}
-请务必区分：
-- 来源平台（如 KBB Review、SDBPRO、Moebelmarkt、SanitaerNews 等）= 媒体/协会，不是行业企业
-- 真正的行业企业（如 Kohler、Hansgrohe、TOTO、Grohe、Duravit、Roca、LIXIL 等）= 才应出现在企业分析中
+=== 铁律（务必遵守）===
+1. **只能依据上面列出的这些资讯**。严禁编造任何上面没有出现的企业名、人名、职位、数字、金额、并购或产品事件——宁可少写，不可杜撰。
+2. **每一条具体结论后面必须标注依据编号**，格式如 [#12] 或 [#3,#45]，指向上面对应的资讯序号，方便核对来源。
+3. 若某个小节在上述资讯中找不到支撑，就直接写「本期抓取数据中暂无相关信息」，**不要为凑内容而虚构**。
+4. 方括号内是【来源平台名称】（如 KBB Review、SDBPRO、Moebelmarkt、Dezeen 等），不是企业。真正的行业企业是 Kohler、Hansgrohe、TOTO、Grohe、Duravit、Roca、LIXIL、FGI Industries 等——只有它们才应出现在企业动态里。
 
-=== 请输出以下结构的中文分析报告 ===
+=== 请输出以下结构的中文分析报告（每条结论后附 [#编号]）===
 
-## 一、主要趋势归纳（{period_label}）
-列出 4-6 个核心趋势，每条包含：趋势名称、具体表现、可能原因
+## 一、主要趋势归纳
+从实际标题中提炼 3-5 个真实出现的共性趋势，每条：趋势名称 + 具体表现（引用编号）。不要套用"智能家居/可持续"等未在数据中出现的模板化结论。
 
 ## 二、企业动态追踪
-分析真实行业企业（非媒体平台）的重要动态，包括：
-- 人事变动（高管任免、离职）
-- 并购与战略合作
-- 新品发布与技术突破
-- 财务与市场变化
+仅罗列上述资讯中**确实提到**的真实企业动态，分类列出并各自标注编号：
+- 人事变动 / 并购与战略合作 / 新品与技术 / 财务与市场
+- 每条写清"哪家企业 + 什么事 + [#编号]"。某类无数据则写"暂无"。
 
 ## 三、地区市场热度
-分析欧洲、北美、亚太、中东等各地区市场的活跃程度和关键事件
+仅根据资讯可判断的地区（看来源国别/内容）说明活跃度，标注编号；无法判断则说明。
 
 ## 四、风险与机会信号
-从以上资讯中识别：行业潜在风险 / 值得关注的早期机会信号
+从以上资讯中可推断的风险 / 早期机会，各附编号；纯推测的不要写。
 
 ## 五、分析师综合点评
-- 行业整体所处阶段判断
-- 近期最值得重点关注的 3 件事
-- 对下一季度的前瞻预判
+- 基于以上有据内容的阶段判断
+- 近期最值得关注的 3 件事（须来自上面资讯并附编号）
+- 谨慎的下一季度前瞻
 
-请用专业但易懂的中文输出，避免将媒体平台名称误认为企业。"""
+请用专业、克制、可核对的中文输出。没有依据的话宁可写"数据不足"，也不要编。"""
 
     try:
         if provider == "openai" or provider == "deepseek":
@@ -693,7 +692,7 @@ def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai"
             res = requests.post(
                 f"{base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 2000},
+                json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 2000, "temperature": 0.2},
                 timeout=60
             )
             data = res.json()
@@ -702,7 +701,7 @@ def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai"
             res = requests.post(
                 "https://api.anthropic.com/v1/messages",
                 headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"},
-                json={"model": "claude-haiku-4-5-20251001", "max_tokens": 2000, "messages": [{"role": "user", "content": prompt}]},
+                json={"model": "claude-haiku-4-5-20251001", "max_tokens": 2000, "temperature": 0.2, "messages": [{"role": "user", "content": prompt}]},
                 timeout=60
             )
             data = res.json()
@@ -711,7 +710,7 @@ def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai"
             res = requests.post(
                 "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json={"model": "qwen-turbo", "input": {"messages": [{"role": "user", "content": prompt}]}},
+                json={"model": "qwen-turbo", "input": {"messages": [{"role": "user", "content": prompt}]}, "parameters": {"temperature": 0.2}},
                 timeout=60
             )
             data = res.json()
