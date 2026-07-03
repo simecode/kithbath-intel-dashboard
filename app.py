@@ -460,35 +460,44 @@ def scrape_site(name: str, config_data) -> List[Dict]:
     return articles
 
 def search_discovery(keywords: List[str]) -> List[Dict]:
-    """全网情报发现。原使用 DuckDuckGo（中国大陆访问受限），改为使用
-    cn.bing.com（国内可直接访问的必应中国站）作为搜索后端。"""
+    """全网情报发现。原用 DuckDuckGo / 必应网页抓取均已被反爬或改版挡住，
+    改用 Google News RSS：返回规范的标题+链接+真实发布日期，稳定不被反爬。
+    注：Google News 在境外服务器（如 Streamlit Cloud）可正常访问；
+    若日后自建服务器部署在中国大陆，此源不可达，需改用可访问的搜索后端或代理。"""
     import random
+    from urllib.parse import quote
     articles = []
-    selected_kws = random.sample(keywords, min(len(keywords), 4))
-    industry_context = "bathroom kitchen sanitary plumbing ceramic"
+    selected_kws = random.sample(keywords, min(len(keywords), 6))
+    # 行业限定词，缩小到卫浴/厨房/建材语境
+    industry_ctx = "(bathroom OR kitchen OR sanitary OR faucet OR ceramic OR plumbing)"
     for kw in selected_kws:
         try:
-            search_query = f'"{kw}" {industry_context} news'
-            url = f"https://cn.bing.com/search?q={search_query.replace(' ', '+')}&qft=interval%3d%228%22"
-            res = requests.get(url, timeout=15, headers=HEADERS)
-            if res.status_code == 200:
-                soup = BeautifulSoup(res.text, "html.parser")
-                for r in soup.select('li.b_algo')[:6]:
-                    a = r.select_one('h2 a')
-                    snippet = r.select_one('.b_caption p') or r.select_one('p')
-                    if a and a.get('href'):
-                        title = a.get_text(strip=True)
-                        if len(title) > 10:
-                            articles.append({
-                                "title": f"✨ {title}",
-                                "link": a['href'],
-                                "source": f"情报发现: {kw}",
-                                "dt": datetime.now(timezone.utc).isoformat(),
-                                "raw_summary": snippet.get_text(strip=True) if snippet else "",
-                                "fetched_at": datetime.now(timezone.utc).isoformat(),
-                            })
-        except:
-            pass
+            query = quote(f'"{kw}" {industry_ctx} when:180d')
+            url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
+            feed = feedparser.parse(url, request_headers={"User-Agent": HEADERS["User-Agent"]})
+            for e in feed.entries[:8]:
+                title = getattr(e, "title", "").strip()
+                link = getattr(e, "link", "").strip()
+                if not title or not link or len(title) < 10:
+                    continue
+                dt = None
+                for f in ("published_parsed", "updated_parsed"):
+                    if getattr(e, f, None):
+                        try:
+                            dt = datetime(*getattr(e, f)[:6], tzinfo=timezone.utc).isoformat()
+                        except Exception:
+                            pass
+                        break
+                articles.append({
+                    "title": f"✨ {title}",
+                    "link": link,
+                    "source": f"情报发现: {kw}",
+                    "dt": dt or datetime.now(timezone.utc).isoformat(),
+                    "raw_summary": clean_text(getattr(e, "summary", "")),
+                    "fetched_at": datetime.now(timezone.utc).isoformat(),
+                })
+        except Exception as ex:
+            print(f"Discovery error {kw}: {ex}")
     return articles
 
 # ============================================================
