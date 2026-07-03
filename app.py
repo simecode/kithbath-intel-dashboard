@@ -468,8 +468,10 @@ def search_discovery(keywords: List[str]) -> List[Dict]:
     from urllib.parse import quote
     articles = []
     selected_kws = random.sample(keywords, min(len(keywords), 6))
-    # 行业限定词，缩小到卫浴/厨房/建材语境
-    industry_ctx = "(bathroom OR kitchen OR sanitary OR faucet OR ceramic OR plumbing)"
+    # 行业限定词：覆盖卫浴/厨房/家电/暖通/建材五大板块，过滤掉手机/电视等无关新闻
+    industry_ctx = ("(bathroom OR kitchen OR sanitary OR faucet OR HVAC OR \"heat pump\" "
+                    "OR appliance OR heating OR cooling OR ceramic OR tile OR plumbing "
+                    "OR flooring OR cabinet OR \"building material\")")
     for kw in selected_kws:
         try:
             query = quote(f'"{kw}" {industry_ctx} when:180d')
