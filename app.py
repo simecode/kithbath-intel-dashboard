@@ -556,7 +556,6 @@ OPENROUTER_FREE_MODELS = [
     "meta-llama/llama-3.3-70b-instruct:free",
     "qwen/qwen3-next-80b-a3b-instruct:free",
     "google/gemma-4-31b-it:free",
-    "nousresearch/hermes-3-llama-3.1-405b:free",
 ]
 
 def call_openrouter(prompt: str, api_key: str, max_tokens: int = 2000) -> str:
