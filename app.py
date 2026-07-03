@@ -551,6 +551,50 @@ def trigger_bg_update(store_path, rss_dict, scrape_dict, state_key, interval_min
 # ============================================================
 # AI 分析功能
 # ============================================================
+# OpenRouter 免费模型（按优先级；免费模型常过载，用多个自动回退）
+OPENROUTER_FREE_MODELS = [
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "qwen/qwen3-next-80b-a3b-instruct:free",
+    "google/gemma-4-31b-it:free",
+    "nousresearch/hermes-3-llama-3.1-405b:free",
+]
+
+def call_openrouter(prompt: str, api_key: str, max_tokens: int = 2000) -> str:
+    """调用 OpenRouter。利用其原生 models 回退：某个免费模型过载/报错时自动换下一个。"""
+    api_key = (api_key or "").strip()
+    try:
+        res = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://kitchbathintel.streamlit.app",
+                "X-Title": "KitchBath Intel Dashboard",
+            },
+            json={
+                "models": OPENROUTER_FREE_MODELS,   # 依次回退
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": max_tokens,
+            },
+            timeout=120,
+        )
+        try:
+            data = res.json()
+        except Exception:
+            return f"OpenRouter 返回非 JSON（HTTP {res.status_code}）：{res.text[:300]}"
+        if "choices" in data and data["choices"]:
+            return data["choices"][0]["message"]["content"]
+        err = data.get("error", {})
+        msg = err.get("message", str(data)) if isinstance(err, dict) else str(err)
+        hint = ""
+        if "rate" in msg.lower() or res.status_code == 429:
+            hint = "（免费额度/频率受限，稍后再试或换 DeepSeek）"
+        elif res.status_code in (401, 403):
+            hint = "（API Key 无效）"
+        return f"OpenRouter 返回错误 HTTP {res.status_code}{hint}：{msg}"
+    except Exception as e:
+        return f"OpenRouter 调用出错：{str(e)}"
+
 def call_cloudflare_ai(prompt: str, api_key: str, max_tokens: int = 2000) -> str:
     """调用 Cloudflare Workers AI 免费模型。
     api_key 格式要求为 "account_id:api_token"（在 Cloudflare Dashboard -> Workers AI 获取）。"""
@@ -673,23 +717,7 @@ def analyze_with_ai(articles: List[Dict], api_key: str, provider: str = "openai"
             data = res.json()
             return data["output"]["text"]
         elif provider == "openrouter":
-            model = "meta-llama/llama-3.3-70b-instruct:free"
-            res = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://kitchbathintel.streamlit.app",
-                    "X-Title": "KitchBath Intel Dashboard"
-                },
-                json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 2000},
-                timeout=90
-            )
-            data = res.json()
-            if "choices" in data:
-                return data["choices"][0]["message"]["content"]
-            else:
-                return f"OpenRouter 返回错误：{data.get('error', {}).get('message', str(data))}"
+            return call_openrouter(prompt, api_key, max_tokens=2000)
         elif provider == "cloudflare":
             return call_cloudflare_ai(prompt, api_key, max_tokens=2000)
         else:
@@ -862,13 +890,7 @@ def ai_classify_sentiment(articles: List[Dict], theme_name: str, api_key: str, p
                 timeout=60)
             result_text = res.json()["choices"][0]["message"]["content"]
         elif provider == "openrouter":
-            res = requests.post("https://openrouter.ai/api/v1/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json",
-                         "HTTP-Referer": "https://kitchbathintel.streamlit.app"},
-                json={"model": "meta-llama/llama-3.3-70b-instruct:free",
-                      "messages": [{"role": "user", "content": prompt}], "max_tokens": 1500},
-                timeout=90)
-            result_text = res.json()["choices"][0]["message"]["content"]
+            result_text = call_openrouter(prompt, api_key, max_tokens=1500)
         elif provider == "anthropic":
             res = requests.post("https://api.anthropic.com/v1/messages",
                 headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"},
@@ -1400,7 +1422,7 @@ def main():
             )
         with ac2:
             analyze_scope = st.radio(
-                "分析范围", ["行业媒体", "行业协会", "全部合并"], horizontal=True,
+                "分析范围", ["行业媒体", "行业协会", "全部（含情报发现）"], horizontal=True,
                 key="analysis_scope"
             )
             analyze_months = st.select_slider(
@@ -1423,7 +1445,8 @@ def main():
                     elif analyze_scope == "行业协会":
                         data = store_read(ASSOC_STORE)
                     else:
-                        data = store_read(MEDIA_STORE) + store_read(ASSOC_STORE)
+                        data = (store_read(MEDIA_STORE) + store_read(ASSOC_STORE)
+                                + store_read(DISCOVERY_STORE))
                     result = analyze_with_ai(data, ai_key, ai_provider, months=analyze_months)
                     st.session_state["ai_analysis"] = result
                     st.session_state["ai_analysis_time"] = datetime.now().strftime("%Y-%m-%d %H:%M")
